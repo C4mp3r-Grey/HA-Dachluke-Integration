@@ -72,6 +72,9 @@ from .const import (
     CONF_SECOND_WAIT,
     CONF_SHOWER_DETECT,
     CONF_SHOWER_END_DROP,
+    CONF_STALL_DELTA,
+    CONF_STALL_ENABLED,
+    CONF_STALL_MINUTES,
     CONF_TEMP_SENSOR,
     CONF_WEATHER,
     COUNTERS,
@@ -260,6 +263,8 @@ class DachlukeController:
                 await self._close("timer", "Lüftungszeit während Neustart abgelaufen")
             elif self.vent_end:
                 self._at("vent", self.vent_end, self._vent_elapsed)
+                if self.mode == MODE_AUTO and self.shower_end:
+                    self._schedule_stall_check(max(self.shower_end, now))
         elif open_:
             # Offen, aber keine bekannte Lüftung: wie manuelles Öffnen behandeln
             self.mode = MODE_MANUAL
@@ -734,6 +739,7 @@ class DachlukeController:
         counter = {
             "feuchte": "close_humidity",
             "timer": "close_timer",
+            "stagnation": "close_stall",
             "sicherheit": "close_safety",
             "hand": "close_manual",
         }.get(kind)
@@ -742,11 +748,11 @@ class DachlukeController:
         await self._finish_vent(kind)
         if kind != "hand":
             self._log("ZU", f"Geschlossen: {text}")
-        if kind in ("feuchte", "timer") and not from_manual:
+        if kind in ("feuchte", "timer", "stagnation") and not from_manual:
             await self._notify("✅ Dachluke geschlossen", text,
                                critical=kind == "timer",
                                alexa="Lüftung abgeschlossen. Dachluke geschlossen.")
-        if kind in ("feuchte", "timer") and was_mode == MODE_AUTO:
+        if kind in ("feuchte", "timer", "stagnation") and was_mode == MODE_AUTO:
             self._schedule_second_vent()
 
     async def _finish_vent(self, kind: str) -> None:
@@ -760,7 +766,7 @@ class DachlukeController:
         self.peak = None
         self.shower_end = None
         self.baseline_ah = None
-        for key in ("vent", "min_open"):
+        for key in ("vent", "min_open", "stall"):
             self._cancel(key)
         await self._heating_restore()
 
@@ -782,6 +788,7 @@ class DachlukeController:
         drop = float(self.cfg[CONF_SHOWER_END_DROP])
         if self.shower_end is not None and rise >= threshold:
             self.shower_end = None
+            self._cancel("stall")
             self.peak = value
             self._log("DUSCHE", f"Neuer Feuchte-Anstieg (+{rise:.1f} %/5 min) – Lüftung läuft weiter")
         if self.peak is None or value > self.peak:
@@ -790,6 +797,7 @@ class DachlukeController:
             if value <= self.peak - drop:
                 self.shower_end = now
                 self._set_vent_end(self._vent_end_for(now))
+                self._schedule_stall_check(now)
                 self._log(
                     "DUSCHE_ENDE",
                     f"Feuchte fällt vom Höchstwert {self.peak:.0f} % auf {value:.0f} % – Nachlüften höchstens {self._max_minutes():.0f} min",
@@ -798,6 +806,27 @@ class DachlukeController:
                 new_end = self._vent_end_for(now)
                 if self.vent_end is None or new_end > self.vent_end:
                     self._set_vent_end(new_end)
+
+    def _schedule_stall_check(self, base: datetime) -> None:
+        if not self.cfg[CONF_STALL_ENABLED]:
+            return
+        self._at("stall", base + timedelta(minutes=float(self.cfg[CONF_STALL_MINUTES])), self._stall_check)
+
+    async def _stall_check(self, _now: datetime) -> None:
+        """Nach dem Duschen: fällt die Feuchte kaum noch, bringt Lüften nichts mehr."""
+        if self.mode != MODE_AUTO or self.shower_end is None:
+            return
+        now = dt_util.utcnow()
+        minutes = float(self.cfg[CONF_STALL_MINUTES])
+        drop = logic.humidity_drop(self.samples, now, minutes)
+        if drop is not None and drop < float(self.cfg[CONF_STALL_DELTA]):
+            hum = self.humidity()
+            await self._close(
+                "stagnation",
+                f"Trocknung stagniert: Feuchte in {minutes:.0f} min nur um {max(drop, 0):.1f} % gefallen (jetzt {hum or 0:.0f} %)",
+            )
+            return
+        self._at("stall", now + timedelta(minutes=2), self._stall_check)
 
     def _set_vent_end(self, when: datetime) -> None:
         self.vent_end = when
@@ -1091,6 +1120,8 @@ class DachlukeController:
                 "close_offset": self.cfg[CONF_CLOSE_OFFSET],
                 "close_abs": self.cfg[CONF_CLOSE_ABS],
                 "max_open": self.cfg[CONF_MAX_OPEN],
+                "stall_enabled": self.cfg[CONF_STALL_ENABLED],
+                "stall_minutes": self.cfg[CONF_STALL_MINUTES],
                 "require_light": self.cfg[CONF_REQUIRE_LIGHT],
             },
         }

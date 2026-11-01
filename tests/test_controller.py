@@ -175,10 +175,12 @@ async def test_state_survives_reload(hass, setup, freezer):
     # Höchstwert und Timer überstehen den Neustart: Duschende erkennen, dann 20 min Nachlüften
     await step(hass, freezer, 1, HUM, "68")
     assert entry.runtime_data.shower_end is not None
-    await step(hass, freezer, 19)
+    # Feuchte bleibt bei 68 %: nach 10 min ohne Abfall schließt die Stagnationsprüfung
+    await step(hass, freezer, 9)
     assert not calls["close"]
     await step(hass, freezer, 2)
     assert calls["close"]
+    assert counter(hass, "close_stall") == 1
 
 
 async def test_weather_blocked_closes(hass, setup, freezer):

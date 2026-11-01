@@ -39,7 +39,7 @@ async def _shower_start(hass, freezer):
 
 
 async def test_long_shower_keeps_window_open(hass, freezer):
-    entry, calls = await _setup(hass, freezer)
+    entry, calls = await _setup(hass, freezer, stall_enabled=False)
     await _shower_start(hass, freezer)
     # 30 Minuten Plateau bei 90-92 %: es wird noch geduscht
     for i in range(10):
@@ -100,3 +100,42 @@ async def test_new_shower_after_end_extends_again(hass, freezer):
     assert c.shower_end is None
     await step(hass, freezer, 18, HUM, "93")
     assert not calls["close"]
+
+
+async def test_stalled_drying_closes_early(hass, freezer):
+    entry, calls = await _setup(hass, freezer)
+    await _shower_start(hass, freezer)
+    await step(hass, freezer, 3, HUM, "90")
+    await step(hass, freezer, 3, HUM, "84")  # Duschende (T)
+    await step(hass, freezer, 3, HUM, "72")  # T+3
+    await step(hass, freezer, 3, HUM, "69")  # T+6, Außenluft feucht: bleibt stehen
+    await step(hass, freezer, 5)  # T+11
+    await step(hass, freezer, 4)  # T+15
+    assert not calls["close"], "der Abfall von 72 auf 69 % liegt noch im Beobachtungszeitraum"
+    await step(hass, freezer, 3)  # T+18
+    assert calls["close"], "10 min ohne nennenswerten Abfall → vor Ablauf der 20 min geschlossen"
+    assert counter(hass, "close_stall") == 1
+    assert any("stagniert" in p["text"] for p in entry.runtime_data.protocol)
+
+
+async def test_steady_drying_is_not_stall(hass, freezer):
+    entry, calls = await _setup(hass, freezer, stall_minutes=10, stall_delta=1.0)
+    await _shower_start(hass, freezer)
+    await step(hass, freezer, 3, HUM, "90")
+    await step(hass, freezer, 3, HUM, "86")  # Duschende
+    for v in ("84", "82", "80", "78", "76", "74"):
+        await step(hass, freezer, 3, HUM, v)
+    assert not calls["close"], "fällt stetig um ~2 %/3 min – keine Stagnation"
+
+
+async def test_stall_can_be_disabled(hass, freezer):
+    entry, calls = await _setup(hass, freezer, stall_enabled=False)
+    await _shower_start(hass, freezer)
+    await step(hass, freezer, 3, HUM, "90")
+    await step(hass, freezer, 3, HUM, "84")
+    await step(hass, freezer, 3, HUM, "70")
+    await step(hass, freezer, 14)
+    assert not calls["close"], "ohne Stagnationsprüfung bleibt die Luke offen"
+    await step(hass, freezer, 4)
+    assert calls["close"]
+    assert counter(hass, "close_timer") == 1

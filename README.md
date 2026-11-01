@@ -39,6 +39,7 @@ Homematic(IP) Local → HmIP-BROLL öffnen → **Unignore Parameters** → Kanal
 | Zweiter gleicher Tastendruck | wurde nicht erkannt (Attribut-Trigger) | jeder Druck wird erkannt |
 | Öffnen per Dashboard, Alexa, CCU | kein Timer, Luke blieb offen | jede Öffnung bekommt einen Timer |
 | Schließen | feste 65 % oder Taupunkt | sobald die Feuchte wieder beim *Ausgangswert vor dem Duschen* liegt: mit Temperatursensor nach **absoluter** Feuchte (+1 g/m³), sonst nach relativer (+3 %). Feste Schwelle und Taupunkt gibt es optional zusätzlich |
+| Trocknung stagniert | Luke blieb bis Zeitablauf offen | schließt, wenn die Feuchte nach dem Duschen 10 min lang um weniger als 1 % fällt (z. B. bei feuchter Außenluft) |
 | Maximale Öffnungsdauer | ab Öffnen | ab **Duschende** (Feuchte fällt um 3 % vom Höchstwert). Während des Duschens bleibt die Luke offen, Obergrenze 90 min |
 | Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik |
 | Licht | Pflicht zum Öffnen | optional (Standard: aus) |
@@ -63,7 +64,7 @@ Erkannt werden die Ereignistypen `press_short` und `press_long_release` bzw. `pr
 
 - `sensor.…_status`: Bereit, Lüftet (Automatik/von Hand), Nachlüften, Pause, Deaktiviert, Gesperrt (Alarm/Wetter), Sensor fehlt. Das Attribut `hindernisse_oeffnen` nennt, warum gerade nicht geöffnet würde.
 - `sensor.…_feuchte_anstieg_5_min`, `…_ausgangsfeuchte`, `…_luftung_endet`, `…_dauer_letzte_luftung`, `…_letztes_ereignis`
-- Zähler (Diagnose): automatisch und von Hand geöffnet; geschlossen wegen Feuchte, Zeit, von Hand, Wetter/Alarm; Duschen erkannt; Duschen ohne Öffnen; Sensorausfälle
+- Zähler (Diagnose): automatisch und von Hand geöffnet; geschlossen wegen Feuchte, Zeit, stagnierender Trocknung, von Hand, Wetter/Alarm; Duschen erkannt; Duschen ohne Öffnen; Sensorausfälle
 - `binary_sensor.…_luke_offen`, `switch.…_automatik`, `switch.…_pause`, `button.…_analyse_zurucksetzen`
 
 Die genauen Entity-IDs hängen von der Sprache bei der Einrichtung ab. Die Seitenleisten-Seite zeigt sie und baut daraus die Dashboard-YAML.

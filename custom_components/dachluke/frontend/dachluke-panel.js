@@ -19,6 +19,7 @@ const COUNTER_TEXT = [
   ["showers_missed", "Duschen ohne Öffnen"],
   ["close_humidity", "Zu wegen Feuchte"],
   ["close_timer", "Zu nach Zeitablauf"],
+  ["close_stall", "Zu: Trocknung stagniert"],
   ["close_manual", "Von Hand geschlossen"],
   ["close_safety", "Zu wegen Wetter/Alarm"],
   ["sensor_failures", "Sensorausfälle"],

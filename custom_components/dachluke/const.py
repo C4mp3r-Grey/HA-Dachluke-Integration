@@ -31,6 +31,9 @@ CONF_CLOSE_ABS: Final = "close_abs"
 CONF_CLOSE_AH_OFFSET: Final = "close_ah_offset"
 CONF_SHOWER_END_DROP: Final = "shower_end_drop"
 CONF_HARD_CAP: Final = "hard_cap"
+CONF_STALL_ENABLED: Final = "stall_enabled"
+CONF_STALL_MINUTES: Final = "stall_minutes"
+CONF_STALL_DELTA: Final = "stall_delta"
 CONF_MIN_OPEN: Final = "min_open"
 CONF_MAX_OPEN: Final = "max_open"
 CONF_MANUAL_DURATION: Final = "manual_duration"
@@ -121,6 +124,9 @@ DEFAULTS: Final[dict] = {
     CONF_CLOSE_AH_OFFSET: 1.0,
     CONF_SHOWER_END_DROP: 3.0,
     CONF_HARD_CAP: 90,
+    CONF_STALL_ENABLED: True,
+    CONF_STALL_MINUTES: 10,
+    CONF_STALL_DELTA: 1.0,
     CONF_MIN_OPEN: 5,
     CONF_MAX_OPEN: 20,
     CONF_MANUAL_DURATION: 15,
@@ -209,6 +215,7 @@ COUNTERS: Final = [
     "open_manual",
     "close_humidity",
     "close_timer",
+    "close_stall",
     "close_manual",
     "close_safety",
     "showers",

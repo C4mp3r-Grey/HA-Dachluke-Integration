@@ -31,6 +31,27 @@ def humidity_rise(samples: Sequence[Sample], now: datetime, window_min: float = 
     return round(current - min(candidates), 1)
 
 
+def value_at(samples: Sequence[Sample], when: datetime) -> float | None:
+    """Letzter bekannter Wert zum Zeitpunkt `when` (Sensoren melden nur Änderungen)."""
+    value = None
+    for t, v in samples:
+        if t <= when:
+            value = v
+        else:
+            break
+    return value
+
+
+def humidity_drop(samples: Sequence[Sample], now: datetime, minutes: float) -> float | None:
+    """Um wie viel die Feuchte in den letzten `minutes` gefallen ist (positiv = gefallen)."""
+    if not samples:
+        return None
+    past = value_at(samples, now - timedelta(minutes=minutes))
+    if past is None:
+        return None
+    return round(past - samples[-1][1], 2)
+
+
 def baseline_humidity(samples: Sequence[Sample], now: datetime, lookback_min: float = 20) -> float | None:
     """Feuchte vor dem Duschen: Minimum der letzten `lookback_min` Minuten."""
     start = now - timedelta(minutes=lookback_min)

@@ -71,7 +71,10 @@
           "dew_offset": "Dew offset",
           "close_ah_offset": "Close at baseline absolute humidity plus",
           "shower_end_drop": "Shower end when humidity drops from peak by",
-          "hard_cap": "Maximum total duration"
+          "hard_cap": "Maximum total duration",
+          "stall_enabled": "Close when drying stalls",
+          "stall_minutes": "Observation period",
+          "stall_delta": "Stalled if humidity drops less than"
         }
       },
       "weather": {
@@ -254,6 +257,9 @@
       },
       "absolute_humidity": {
         "name": "Absolute humidity"
+      },
+      "count_close_stall": {
+        "name": "Closed: drying stalled"
       }
     },
     "binary_sensor": {

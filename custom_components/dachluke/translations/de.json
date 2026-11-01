@@ -84,7 +84,10 @@
           "dew_offset": "Taupunkt-Offset",
           "close_ah_offset": "Schließen bei absoluter Ausgangsfeuchte plus",
           "shower_end_drop": "Duschende, wenn Feuchte vom Höchstwert fällt um",
-          "hard_cap": "Obergrenze Gesamtdauer"
+          "hard_cap": "Obergrenze Gesamtdauer",
+          "stall_enabled": "Schließen, wenn Trocknung stagniert",
+          "stall_minutes": "Beobachtungszeitraum",
+          "stall_delta": "Stagnation, wenn Feuchte weniger fällt als"
         },
         "data_description": {
           "rise_threshold": "Anstieg der relativen Feuchte innerhalb von 5 Minuten. Der Blueprint nutzte 8.",
@@ -95,7 +98,9 @@
           "close_ah_offset": "Schließt, sobald die absolute Feuchte wieder bei Wert vor dem Duschen plus diesem Wert liegt. 1 g/m³ entspricht bei 21 °C ungefähr 5 % rF.",
           "shower_end_drop": "Solange die Feuchte am Höchstwert bleibt, wird noch geduscht und die Luke bleibt offen.",
           "hard_cap": "Sicherheitsgrenze ab dem Öffnen, auch wenn kein Duschende erkannt wird.",
-          "max_open": "Zählt ab dem erkannten Duschende. Vorher bleibt die Luke offen (bis zur Obergrenze)."
+          "max_open": "Zählt ab dem erkannten Duschende. Vorher bleibt die Luke offen (bis zur Obergrenze).",
+          "stall_enabled": "Greift erst nach dem Duschende. Fällt die Feuchte im Beobachtungszeitraum kaum noch, bringt weiteres Lüften nichts (z. B. bei feuchter Außenluft).",
+          "stall_delta": "Fällt die relative Feuchte im Beobachtungszeitraum um weniger als diesen Wert, wird geschlossen."
         },
         "description": "Wann geöffnet und wann geschlossen wird."
       },
@@ -288,6 +293,9 @@
       },
       "absolute_humidity": {
         "name": "Absolute Feuchte"
+      },
+      "count_close_stall": {
+        "name": "Geschlossen: Trocknung stagniert"
       }
     },
     "binary_sensor": {

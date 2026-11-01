@@ -47,3 +47,10 @@ def test_target_position():
 
 def test_dew_point_roughly():
     assert 11 < logic.dew_point(21, 55) < 12.5
+
+
+def test_humidity_drop_uses_last_known_value():
+    samples = [(m(0), 80.0), (m(3), 72.0), (m(12), 71.5)]
+    assert logic.humidity_drop(samples, m(12), 10) == 8.5
+    assert logic.humidity_drop(samples, m(20), 10) == 0.5
+    assert logic.humidity_drop(samples, m(5), 10) is None
