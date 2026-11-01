@@ -172,8 +172,12 @@ async def test_state_survives_reload(hass, setup, freezer):
     assert await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     assert st(hass, "status") == "lueftet_auto"
-    # Timer läuft nach dem Neustart weiter und schließt spätestens nach 45 min
-    await step(hass, freezer, 46)
+    # Höchstwert und Timer überstehen den Neustart: Duschende erkennen, dann 20 min Nachlüften
+    await step(hass, freezer, 1, HUM, "68")
+    assert entry.runtime_data.shower_end is not None
+    await step(hass, freezer, 19)
+    assert not calls["close"]
+    await step(hass, freezer, 2)
     assert calls["close"]
 
 

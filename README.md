@@ -38,7 +38,8 @@ Homematic(IP) Local → HmIP-BROLL öffnen → **Unignore Parameters** → Kanal
 |---|---|---|
 | Zweiter gleicher Tastendruck | wurde nicht erkannt (Attribut-Trigger) | jeder Druck wird erkannt |
 | Öffnen per Dashboard, Alexa, CCU | kein Timer, Luke blieb offen | jede Öffnung bekommt einen Timer |
-| Schließen | feste 65 % oder Taupunkt | sobald die Feuchte wieder bei *Ausgangswert vor dem Duschen + 3 %* liegt. Feste Schwelle und Taupunkt gibt es optional zusätzlich |
+| Schließen | feste 65 % oder Taupunkt | sobald die Feuchte wieder beim *Ausgangswert vor dem Duschen* liegt: mit Temperatursensor nach **absoluter** Feuchte (+1 g/m³), sonst nach relativer (+3 %). Feste Schwelle und Taupunkt gibt es optional zusätzlich |
+| Maximale Öffnungsdauer | ab Öffnen | ab **Duschende** (Feuchte fällt um 3 % vom Höchstwert). Während des Duschens bleibt die Luke offen, Obergrenze 90 min |
 | Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik |
 | Licht | Pflicht zum Öffnen | optional (Standard: aus) |
 | Pause nach Neustart | konnte hängen bleiben | Pause und Timer überstehen Neustarts |

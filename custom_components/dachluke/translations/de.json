@@ -11,12 +11,14 @@
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
           "require_light": "Automatisch nur öffnen, wenn Licht an ist",
-          "fan": "Lüfter (nur für die Analyse)"
+          "fan": "Lüfter (nur für die Analyse)",
+          "temperature_sensor": "Temperatur Bad (für absolute Feuchte)"
         },
         "data_description": {
           "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
-          "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet."
+          "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet.",
+          "temperature_sensor": "Mit Temperatur schließt die Luke nach absoluter Feuchte (g/m³). Heizen senkt dann nicht mehr fälschlich die Messung."
         },
         "description": "Weitere Einstellungen (Heizung, Tasten, Alarm, Benachrichtigungen) findest du danach unter Konfigurieren."
       }
@@ -55,12 +57,14 @@
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
           "require_light": "Automatisch nur öffnen, wenn Licht an ist",
-          "fan": "Lüfter (nur für die Analyse)"
+          "fan": "Lüfter (nur für die Analyse)",
+          "temperature_sensor": "Temperatur Bad (für absolute Feuchte)"
         },
         "data_description": {
           "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
-          "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet."
+          "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet.",
+          "temperature_sensor": "Mit Temperatur schließt die Luke nach absoluter Feuchte (g/m³). Heizen senkt dann nicht mehr fälschlich die Messung."
         },
         "description": "Welche Entitäten die Luke steuern und messen."
       },
@@ -69,22 +73,29 @@
         "data": {
           "rise_threshold": "Öffnen ab Feuchte-Anstieg",
           "shower_detect": "Dusche erkennen ab (Analyse)",
-          "close_offset": "Schließen bei Ausgangsfeuchte plus",
+          "close_offset": "Schließen bei Ausgangsfeuchte plus (ohne Temperatursensor)",
           "close_abs": "Zusätzlich schließen unter (0 = aus)",
           "min_open": "Mindest-Öffnungsdauer",
-          "max_open": "Maximale Öffnungsdauer (Automatik)",
+          "max_open": "Nachlüften nach Duschende höchstens",
           "manual_duration": "Dauer bei Öffnung von Hand",
           "pause_duration": "Pause nach Schließen von Hand",
           "dew_enabled": "Zusätzlich nach Taupunkt schließen",
           "indoor_dew_sensor": "Taupunkt innen (Sensor)",
-          "dew_offset": "Taupunkt-Offset"
+          "dew_offset": "Taupunkt-Offset",
+          "close_ah_offset": "Schließen bei absoluter Ausgangsfeuchte plus",
+          "shower_end_drop": "Duschende, wenn Feuchte vom Höchstwert fällt um",
+          "hard_cap": "Obergrenze Gesamtdauer"
         },
         "data_description": {
           "rise_threshold": "Anstieg der relativen Feuchte innerhalb von 5 Minuten. Der Blueprint nutzte 8.",
           "shower_detect": "Ab diesem Anstieg zählt die Analyse eine Dusche, auch wenn nicht geöffnet wird. Kleiner als die Öffnungsschwelle wählen.",
-          "close_offset": "Schließt, sobald die Feuchte wieder bei Ausgangswert vor dem Duschen plus diesem Wert liegt.",
+          "close_offset": "Wird nur genutzt, wenn kein Temperatursensor eingetragen ist.",
           "close_abs": "Fester Schwellwert wie im Blueprint (dort 65 %). 0 schaltet ihn ab.",
-          "manual_duration": "Von Hand geöffnet wird nur nach dieser Zeit geschlossen, nicht wegen niedriger Feuchte. Duscht jemand währenddessen, übernimmt die Automatik."
+          "manual_duration": "Von Hand geöffnet wird nur nach dieser Zeit geschlossen, nicht wegen niedriger Feuchte. Duscht jemand währenddessen, übernimmt die Automatik.",
+          "close_ah_offset": "Schließt, sobald die absolute Feuchte wieder bei Wert vor dem Duschen plus diesem Wert liegt. 1 g/m³ entspricht bei 21 °C ungefähr 5 % rF.",
+          "shower_end_drop": "Solange die Feuchte am Höchstwert bleibt, wird noch geduscht und die Luke bleibt offen.",
+          "hard_cap": "Sicherheitsgrenze ab dem Öffnen, auch wenn kein Duschende erkannt wird.",
+          "max_open": "Zählt ab dem erkannten Duschende. Vorher bleibt die Luke offen (bis zur Obergrenze)."
         },
         "description": "Wann geöffnet und wann geschlossen wird."
       },
@@ -274,6 +285,9 @@
       },
       "count_sensor_failures": {
         "name": "Sensorausfälle"
+      },
+      "absolute_humidity": {
+        "name": "Absolute Feuchte"
       }
     },
     "binary_sensor": {

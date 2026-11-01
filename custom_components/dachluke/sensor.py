@@ -38,6 +38,9 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
             "hindernisse_oeffnen": c.open_blockers(),
             "zielposition": c.target(),
             "pause_bis": c.pause_until.isoformat() if c.pause_until else None,
+            "hoechstwert_feuchte": c.peak,
+            "duschende": c.shower_end.isoformat() if c.shower_end else None,
+            "ausgangsfeuchte_absolut": c.baseline_ah,
         },
     ),
     DachlukeSensorDescription(
@@ -46,6 +49,13 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
         value=lambda c: c.rise,
+    ),
+    DachlukeSensorDescription(
+        key="absolute_humidity",
+        native_unit_of_measurement="g/m³",
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value=lambda c: c.abs_humidity(),
     ),
     DachlukeSensorDescription(
         key="humidity_baseline",

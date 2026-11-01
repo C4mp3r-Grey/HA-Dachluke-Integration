@@ -17,6 +17,7 @@ CONF_NAME: Final = "name"
 CONF_COVER: Final = "cover"
 CONF_POSITION_SENSOR: Final = "position_sensor"
 CONF_HUMIDITY_SENSOR: Final = "humidity_sensor"
+CONF_TEMP_SENSOR: Final = "temperature_sensor"
 CONF_WEATHER: Final = "weather"
 CONF_LIGHTS: Final = "lights"
 CONF_REQUIRE_LIGHT: Final = "require_light"
@@ -27,6 +28,9 @@ CONF_RISE_THRESHOLD: Final = "rise_threshold"
 CONF_SHOWER_DETECT: Final = "shower_detect"
 CONF_CLOSE_OFFSET: Final = "close_offset"
 CONF_CLOSE_ABS: Final = "close_abs"
+CONF_CLOSE_AH_OFFSET: Final = "close_ah_offset"
+CONF_SHOWER_END_DROP: Final = "shower_end_drop"
+CONF_HARD_CAP: Final = "hard_cap"
 CONF_MIN_OPEN: Final = "min_open"
 CONF_MAX_OPEN: Final = "max_open"
 CONF_MANUAL_DURATION: Final = "manual_duration"
@@ -108,13 +112,17 @@ DEFAULTS: Final[dict] = {
     CONF_LIGHTS: [],
     CONF_REQUIRE_LIGHT: False,
     CONF_FAN: None,
+    CONF_TEMP_SENSOR: None,
     CONF_WEATHER: None,
     CONF_RISE_THRESHOLD: 8.0,
     CONF_SHOWER_DETECT: 4.0,
     CONF_CLOSE_OFFSET: 3.0,
     CONF_CLOSE_ABS: 0.0,
+    CONF_CLOSE_AH_OFFSET: 1.0,
+    CONF_SHOWER_END_DROP: 3.0,
+    CONF_HARD_CAP: 90,
     CONF_MIN_OPEN: 5,
-    CONF_MAX_OPEN: 45,
+    CONF_MAX_OPEN: 20,
     CONF_MANUAL_DURATION: 15,
     CONF_PAUSE_DURATION: 10,
     CONF_DEW_ENABLED: False,

@@ -11,7 +11,8 @@
           "weather": "Weather",
           "lights": "Lights",
           "require_light": "Only open automatically when a light is on",
-          "fan": "Fan"
+          "fan": "Fan",
+          "temperature_sensor": "Bathroom temperature (for absolute humidity)"
         },
         "description": "More settings are available under Configure afterwards."
       }
@@ -50,7 +51,8 @@
           "weather": "Weather",
           "lights": "Lights",
           "require_light": "Only open automatically when a light is on",
-          "fan": "Fan"
+          "fan": "Fan",
+          "temperature_sensor": "Bathroom temperature (for absolute humidity)"
         }
       },
       "venting": {
@@ -58,15 +60,18 @@
         "data": {
           "rise_threshold": "Open at humidity rise",
           "shower_detect": "Shower detect",
-          "close_offset": "Close at baseline humidity plus",
+          "close_offset": "Close at baseline humidity plus (without temperature sensor)",
           "close_abs": "Also close below (0 = off)",
           "min_open": "Min open",
-          "max_open": "Max open",
+          "max_open": "Venting after shower end at most",
           "manual_duration": "Manual duration",
           "pause_duration": "Pause duration",
           "dew_enabled": "Dew enabled",
           "indoor_dew_sensor": "Indoor dew sensor",
-          "dew_offset": "Dew offset"
+          "dew_offset": "Dew offset",
+          "close_ah_offset": "Close at baseline absolute humidity plus",
+          "shower_end_drop": "Shower end when humidity drops from peak by",
+          "hard_cap": "Maximum total duration"
         }
       },
       "weather": {
@@ -246,6 +251,9 @@
       },
       "count_sensor_failures": {
         "name": "Sensor failures"
+      },
+      "absolute_humidity": {
+        "name": "Absolute humidity"
       }
     },
     "binary_sensor": {

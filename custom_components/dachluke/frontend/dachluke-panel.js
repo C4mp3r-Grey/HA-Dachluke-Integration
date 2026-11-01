@@ -187,10 +187,14 @@ class DachlukePanel extends HTMLElement {
     const status = s ? s.state : c.status;
     const blockers = (s && s.attributes.hindernisse_oeffnen) || c.blockers || [];
     const hum = this._st(c.sources.humidity), pos = this._st(c.sources.position);
-    const rise = this._st(e.humidity_rise), end = this._st(e.vent_end);
+    const rise = this._st(e.humidity_rise), end = this._st(e.vent_end), ah = this._st(e.absolute_humidity);
+    const ended = s && s.attributes.duschende;
     const auto = this._st(e.automatic), pause = this._st(e.pause);
-    const endTxt = end && end.state && !["unknown", "unavailable"].includes(end.state)
-      ? `Schließt spätestens ${new Date(end.state).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : "";
+    const endValid = end && end.state && !["unknown", "unavailable"].includes(end.state);
+    const endClock = endValid ? new Date(end.state).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "";
+    const endTxt = status === "lueftet_auto" && !ended
+      ? `Dusche läuft – schließt spätestens ${c.settings.max_open} min nach Duschende`
+      : endValid ? `Schließt spätestens ${endClock}` : "";
     const showBlockers = ["bereit", "pause", "deaktiviert", "gesperrt_alarm", "gesperrt_wetter", "sensor_fehlt"].includes(status);
     this.shadowRoot.getElementById("live").innerHTML = `
       <div class="row" style="justify-content:space-between">
@@ -202,6 +206,7 @@ class DachlukePanel extends HTMLElement {
       </div>
       <div class="row muted">
         <span>Feuchte <b>${hum ? hum.state : "–"} %</b></span>
+        ${ah && !["unknown", "unavailable"].includes(ah.state) ? `<span>absolut <b>${ah.state} g/m³</b></span>` : ""}
         <span>Anstieg <b>${rise ? rise.state : "–"} %/5 min</b> (öffnet ab ${c.settings.rise_threshold})</span>
         <span>Luke <b>${pos ? pos.state : "–"} %</b></span>
         <span>Zielöffnung <b>${c.target} %</b></span>
@@ -271,7 +276,7 @@ class DachlukePanel extends HTMLElement {
     // Abschnitt 1: Zustand
     add(6, "- type: grid");
     add(8, "cards:");
-    [e.status, e.automatic, e.pause, e.vent_end, s.humidity, e.humidity_rise].filter(Boolean).forEach(id => {
+    [e.status, e.automatic, e.pause, e.vent_end, s.humidity, e.absolute_humidity, e.humidity_rise].filter(Boolean).forEach(id => {
       add(10, "- type: tile"); add(12, `entity: ${id}`);
     });
     // Abschnitt 2: Analyse

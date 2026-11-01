@@ -19,7 +19,7 @@ from .controller import DachlukeController
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.BUTTON]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-VERSION = "1.0.2"
+VERSION = "1.1.0"
 
 type DachlukeConfigEntry = ConfigEntry[DachlukeController]
 

@@ -22,6 +22,7 @@ from .const import (
     CONF_BUTTON_OPEN,
     CONF_CLIMATE,
     CONF_CLOSE_ABS,
+    CONF_CLOSE_AH_OFFSET,
     CONF_CLOSE_OFFSET,
     CONF_CONTACT,
     CONF_CONTACT_GRACE,
@@ -34,6 +35,7 @@ from .const import (
     CONF_FROST_ENABLED,
     CONF_FROST_POSITION,
     CONF_FROST_THRESHOLD,
+    CONF_HARD_CAP,
     CONF_HEATING_ENABLED,
     CONF_HEATING_NORMAL_TEMP,
     CONF_HEATING_RESTORE,
@@ -63,6 +65,8 @@ from .const import (
     CONF_SECOND_THRESHOLD,
     CONF_SECOND_WAIT,
     CONF_SHOWER_DETECT,
+    CONF_SHOWER_END_DROP,
+    CONF_TEMP_SENSOR,
     CONF_WEATHER,
     DEFAULTS,
     DOMAIN,
@@ -111,6 +115,7 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_COVER: (_entity("cover"), False),
     CONF_POSITION_SENSOR: (_entity("sensor"), False),
     CONF_HUMIDITY_SENSOR: (_entity("sensor", device_class="humidity"), False),
+    CONF_TEMP_SENSOR: (_entity("sensor", device_class="temperature"), True),
     CONF_WEATHER: (_entity("weather"), True),
     CONF_LIGHTS: (_entity("light", multiple=True), True),
     CONF_REQUIRE_LIGHT: (BOOL, False),
@@ -119,6 +124,9 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_SHOWER_DETECT: (_num(1, 15, 1, "%/5 min"), False),
     CONF_CLOSE_OFFSET: (_num(0, 15, 1, "%"), False),
     CONF_CLOSE_ABS: (_num(0, 90, 1, "%"), False),
+    CONF_CLOSE_AH_OFFSET: (_num(0.2, 5, 0.1, "g/m³"), False),
+    CONF_SHOWER_END_DROP: (_num(1, 10, 1, "%"), False),
+    CONF_HARD_CAP: (_num(30, 180, 10, "min"), False),
     CONF_MIN_OPEN: (_num(1, 30, 1, "min"), False),
     CONF_MAX_OPEN: (_num(5, 120, 5, "min"), False),
     CONF_MANUAL_DURATION: (_num(2, 120, 1, "min"), False),
@@ -161,17 +169,20 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_DWD: (_entity("sensor"), True),
 }
 
-CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN]
+CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_TEMP_SENSOR, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN]
 
 STEPS: dict[str, list[str]] = {
     "core": CORE,
     "venting": [
         CONF_RISE_THRESHOLD,
         CONF_SHOWER_DETECT,
+        CONF_CLOSE_AH_OFFSET,
         CONF_CLOSE_OFFSET,
         CONF_CLOSE_ABS,
+        CONF_SHOWER_END_DROP,
         CONF_MIN_OPEN,
         CONF_MAX_OPEN,
+        CONF_HARD_CAP,
         CONF_MANUAL_DURATION,
         CONF_PAUSE_DURATION,
         CONF_DEW_ENABLED,

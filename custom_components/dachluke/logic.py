@@ -50,6 +50,12 @@ def dew_point(temp_c: float, rh: float) -> float | None:
     return round(b * gamma / (a - gamma), 1)
 
 
+def absolute_humidity(temp_c: float, rh: float) -> float:
+    """Absolute Feuchte in g/m³ (Magnus-Näherung)."""
+    saturation = 6.112 * math.exp(17.62 * temp_c / (243.12 + temp_c))  # hPa
+    return round(216.7 * (rh / 100 * saturation) / (273.15 + temp_c), 2)
+
+
 def target_position(
     *,
     weather_state: str | None,
@@ -75,6 +81,9 @@ def close_reason(
     humidity: float | None,
     baseline: float | None,
     close_offset: float,
+    abs_humidity: float | None = None,
+    baseline_ah: float | None = None,
+    ah_offset: float = 1.0,
     close_abs: float,
     indoor_dew: float | None,
     outdoor_dew: float | None,
@@ -84,13 +93,19 @@ def close_reason(
     """Grund zum Schließen oder None.
 
     Geschlossen wird, sobald EINE Bedingung erfüllt ist:
-    - Feuchte wieder nahe am Wert vor dem Duschen (Basis + Offset)
+    - absolute Feuchte wieder nahe am Wert vor dem Duschen (wenn Temperatur bekannt).
+      Die relative Feuchte wird dann NICHT mit der Basis verglichen, weil Heizen sie
+      senkt, ohne dass Wasser hinausgeht.
+    - sonst relative Feuchte wieder nahe am Wert vor dem Duschen (Basis + Offset)
     - Feuchte unter dem absoluten Schwellwert (0 = aus)
     - Taupunkt innen unter Taupunkt außen + Offset (optional)
     """
     if humidity is None:
         return None
-    if baseline is not None and humidity <= baseline + close_offset:
+    if abs_humidity is not None and baseline_ah is not None:
+        if abs_humidity <= baseline_ah + ah_offset:
+            return "absolut"
+    elif baseline is not None and humidity <= baseline + close_offset:
         return "basis"
     if close_abs > 0 and humidity < close_abs:
         return "schwelle"
