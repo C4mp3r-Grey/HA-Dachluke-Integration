@@ -1,0 +1,14 @@
+{
+  "domain": "dachluke",
+  "name": "Dachluke Badentlüftung",
+  "codeowners": ["@C4mp3r-Grey"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend", "panel_custom", "websocket_api", "persistent_notification"],
+  "after_dependencies": ["logbook", "recorder"],
+  "documentation": "https://github.com/C4mp3r-Grey/HA-Dachluke-Integration",
+  "issue_tracker": "https://github.com/C4mp3r-Grey/HA-Dachluke-Integration/issues",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "requirements": [],
+  "version": "1.0.0"
+}

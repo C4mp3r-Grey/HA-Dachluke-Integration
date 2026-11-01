@@ -1,0 +1,270 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up roof window",
+        "data": {
+          "name": "Name",
+          "cover": "Roof window (cover)",
+          "position_sensor": "Position sensor (channel 3)",
+          "humidity_sensor": "Bathroom hygrometer",
+          "weather": "Weather",
+          "lights": "Lights",
+          "require_light": "Only open automatically when a light is on",
+          "fan": "Fan"
+        },
+        "description": "More settings are available under Configure afterwards."
+      }
+    },
+    "error": {
+      "climate_required": "Select a thermostat.",
+      "dew_sensor_required": "Select a dew point sensor.",
+      "lights_required": "Select at least one light.",
+      "notify_service": "Must start with notify."
+    },
+    "abort": {
+      "already_configured": "Already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "menu_options": {
+          "core": "Devices and sensors",
+          "venting": "Opening and closing",
+          "weather": "Weather and opening width",
+          "heating": "Heating and frost",
+          "second": "Second venting",
+          "buttons": "Buttons and remote",
+          "safety": "Alarm and window contact",
+          "notify": "Notifications"
+        }
+      },
+      "core": {
+        "title": "Devices and sensors",
+        "data": {
+          "cover": "Roof window (cover)",
+          "position_sensor": "Position sensor (channel 3)",
+          "humidity_sensor": "Bathroom hygrometer",
+          "weather": "Weather",
+          "lights": "Lights",
+          "require_light": "Only open automatically when a light is on",
+          "fan": "Fan"
+        }
+      },
+      "venting": {
+        "title": "Opening and closing",
+        "data": {
+          "rise_threshold": "Open at humidity rise",
+          "shower_detect": "Shower detect",
+          "close_offset": "Close at baseline humidity plus",
+          "close_abs": "Also close below (0 = off)",
+          "min_open": "Min open",
+          "max_open": "Max open",
+          "manual_duration": "Manual duration",
+          "pause_duration": "Pause duration",
+          "dew_enabled": "Dew enabled",
+          "indoor_dew_sensor": "Indoor dew sensor",
+          "dew_offset": "Dew offset"
+        }
+      },
+      "weather": {
+        "title": "Weather and opening width",
+        "data": {
+          "pos_normal": "Pos normal",
+          "pos_restricted": "Pos restricted",
+          "pos_tolerance": "Pos tolerance",
+          "restricted_conditions": "Restricted conditions",
+          "blocked_conditions": "Blocked conditions",
+          "dwd_sensor": "Dwd sensor"
+        }
+      },
+      "heating": {
+        "title": "Heating and frost",
+        "data": {
+          "heating_enabled": "Heating enabled",
+          "climate": "Climate",
+          "heating_vent_temp": "Heating vent temp",
+          "heating_restore": "Heating restore",
+          "heating_normal_temp": "Heating normal temp",
+          "frost_enabled": "Frost enabled",
+          "frost_threshold": "Frost threshold",
+          "frost_position": "Frost position",
+          "frost_duration": "Frost duration"
+        }
+      },
+      "second": {
+        "title": "Second venting",
+        "data": {
+          "second_enabled": "Second enabled",
+          "second_wait": "Second wait",
+          "second_threshold": "Second threshold",
+          "second_duration": "Second duration",
+          "second_heating": "Second heating"
+        }
+      },
+      "buttons": {
+        "title": "Buttons and remote",
+        "data": {
+          "button_open": "Button open",
+          "button_close": "Button close",
+          "remote_open": "Remote open",
+          "remote_close": "Remote close"
+        }
+      },
+      "safety": {
+        "title": "Alarm and window contact",
+        "data": {
+          "contact_sensor": "Contact sensor",
+          "contact_grace": "Contact grace",
+          "alarm_entity": "Alarm entity",
+          "alarm_states": "Alarm states"
+        }
+      },
+      "notify": {
+        "title": "Notifications",
+        "data": {
+          "notify_app_service": "Notify app service",
+          "notify_persistent": "Notify persistent",
+          "alexa_entity": "Alexa entity",
+          "alexa_mode": "Alexa mode",
+          "alexa_volume": "Alexa volume"
+        }
+      }
+    },
+    "error": {
+      "climate_required": "Select a thermostat.",
+      "dew_sensor_required": "Select a dew point sensor.",
+      "lights_required": "Select at least one light.",
+      "notify_service": "Must start with notify."
+    }
+  },
+  "selector": {
+    "weather_condition": {
+      "options": {
+        "rainy": "rainy",
+        "pouring": "pouring",
+        "snowy": "snowy",
+        "snowy-rainy": "snowy-rainy",
+        "lightning": "lightning",
+        "lightning-rainy": "lightning-rainy",
+        "hail": "hail",
+        "windy": "windy",
+        "windy-variant": "windy-variant",
+        "exceptional": "exceptional"
+      }
+    },
+    "alarm_state": {
+      "options": {
+        "armed_home": "armed home",
+        "armed_away": "armed away",
+        "armed_night": "armed night",
+        "armed_vacation": "armed vacation",
+        "armed_custom_bypass": "armed custom bypass",
+        "arming": "arming",
+        "pending": "pending",
+        "triggered": "triggered"
+      }
+    },
+    "alexa_mode": {
+      "options": {
+        "critical": "Critical only",
+        "all": "Everything"
+      }
+    },
+    "alexa_volume": {
+      "options": {
+        "x-soft": "Very soft",
+        "soft": "Soft",
+        "medium": "Medium",
+        "loud": "Loud",
+        "x-loud": "Very loud"
+      }
+    },
+    "heating_restore": {
+      "options": {
+        "previous": "Restore previous setpoint",
+        "fixed": "Fixed temperature"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "bereit": "Ready",
+          "lueftet_auto": "Venting (automatic)",
+          "lueftet_manuell": "Venting (manual)",
+          "nachlueften": "Second venting",
+          "pause": "Paused",
+          "deaktiviert": "Disabled",
+          "gesperrt_alarm": "Blocked (alarm)",
+          "gesperrt_wetter": "Blocked (weather)",
+          "sensor_fehlt": "Sensor missing"
+        }
+      },
+      "humidity_rise": {
+        "name": "Humidity rise 5 min"
+      },
+      "humidity_baseline": {
+        "name": "Baseline humidity"
+      },
+      "vent_end": {
+        "name": "Venting ends"
+      },
+      "last_duration": {
+        "name": "Last venting duration"
+      },
+      "last_event": {
+        "name": "Last event"
+      },
+      "count_open_auto": {
+        "name": "Openings automatic"
+      },
+      "count_open_manual": {
+        "name": "Openings manual"
+      },
+      "count_close_humidity": {
+        "name": "Closed: humidity"
+      },
+      "count_close_timer": {
+        "name": "Closed: timer"
+      },
+      "count_close_manual": {
+        "name": "Closed: manual"
+      },
+      "count_close_safety": {
+        "name": "Closed: weather/alarm"
+      },
+      "count_showers": {
+        "name": "Showers detected"
+      },
+      "count_showers_missed": {
+        "name": "Showers without opening"
+      },
+      "count_sensor_failures": {
+        "name": "Sensor failures"
+      }
+    },
+    "binary_sensor": {
+      "open": {
+        "name": "Window open"
+      }
+    },
+    "switch": {
+      "automatic": {
+        "name": "Automatic"
+      },
+      "pause": {
+        "name": "Pause"
+      }
+    },
+    "button": {
+      "reset_counters": {
+        "name": "Reset analysis"
+      }
+    }
+  }
+}
