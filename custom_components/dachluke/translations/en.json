@@ -98,7 +98,10 @@
           "pos_tolerance": "Pos tolerance",
           "restricted_conditions": "Restricted conditions",
           "blocked_conditions": "Blocked conditions",
-          "dwd_sensor": "Dwd sensor"
+          "dwd_sensor": "Dwd sensor",
+          "brightsky": "Use DWD measurements of the nearest station (Bright Sky)",
+          "rain_sensor": "Rain sensor (precipitation in mm, optional)",
+          "rain_threshold": "Rain from"
         }
       },
       "heating": {

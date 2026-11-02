@@ -40,6 +40,8 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
             "uebliche_raumfeuchte": c.reference()[0],
             "uebliche_raumfeuchte_absolut": c.reference()[1],
             "aussenfeuchte_absolut": c.outdoor_abs_humidity(),
+            "aussenwerte_quelle": c.outdoor_source(),
+            "niederschlag": c.rain_value()[0],
             "schliessen_bei": c.close_targets()[0],
             "schliessen_bei_absolut": c.close_targets()[1],
             "pause_bis": c.pause_until.isoformat() if c.pause_until else None,

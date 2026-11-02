@@ -46,6 +46,7 @@ Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie 
 | Zweiter gleicher Tastendruck | wurde nicht erkannt (Attribut-Trigger) | jeder Druck wird erkannt |
 | Öffnen per Dashboard, Alexa, CCU | kein Timer, Luke blieb offen | jede Öffnung bekommt einen Timer |
 | Schließen | feste 65 % oder Taupunkt | sobald die Feuchte wieder beim *Ausgangswert vor dem Duschen* liegt: mit Temperatursensor nach **absoluter** Feuchte (+1 g/m³), sonst nach relativer (+3 %). Feste Schwelle und Taupunkt gibt es optional zusätzlich |
+| Außenwerte & Regen | Met.no-Zustand „rainy“ (Vorhersagesymbol) | optional **DWD-Messwerte** der nächsten Station über [Bright Sky](https://brightsky.dev/) (frei, ohne Schlüssel; Koordinaten auf ~1 km gerundet) und/oder ein **Regensensor** in mm. Dann zählt gemessener Regen, nicht das Symbol. Hagel/Sturm weiter aus der Wetter-Entität |
 | Erhöhte Ausgangsfeuchte | – | war der Raum vor dem Duschen schon feuchter als üblich, gilt die **übliche Raumfeuchte** als Ziel (Median aus Ruhephasen der letzten 3 Tage). Untergrenze ist die absolute Feuchte draußen + 0,5 g/m³ |
 | Zwei Sensoren beim Schließen | – | mit Raumsensor schließt die Luke erst, wenn **beide** passen: Raumluft wieder nahe am Ziel **und** die feuchte Luft über der Dusche verzogen. Stagnation erst, wenn **kein** Sensor mehr fällt |
 | Nachlüftzeit | harte Grenze | weich: fällt die Feuchte noch, wird in 5-min-Schritten verlängert (bis Obergrenze oder Stagnation) |

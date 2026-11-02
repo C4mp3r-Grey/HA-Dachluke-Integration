@@ -135,13 +135,19 @@ def target_position(
     pos_normal: int,
     pos_restricted: int,
     pos_frost: int,
+    restricted_now: bool | None = None,
 ) -> int:
-    """Zielposition: gesperrt > Frost > eingeschränkt > normal."""
+    """Zielposition: gesperrt > Frost > eingeschränkt > normal.
+
+    restricted_now überschreibt die Prüfung über den Wetterzustand (z. B. wenn
+    ein Regensensor oder Messwerte entscheiden).
+    """
     if weather_state in blocked:
         return 0
     if frost_active:
         return pos_frost
-    if weather_state in restricted:
+    is_restricted = (weather_state in restricted) if restricted_now is None else restricted_now
+    if is_restricted:
         return pos_restricted
     return pos_normal
 

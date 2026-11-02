@@ -12,6 +12,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.components import persistent_notification
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_track_point_in_utc_time,
@@ -29,6 +30,10 @@ from .const import (
     CONF_ALEXA_MODE,
     CONF_ALEXA_VOLUME,
     CONF_BLOCKED,
+    CONF_BRIGHTSKY,
+    CONF_RAIN_SENSOR,
+    CONF_RAIN_THRESHOLD,
+    BRIGHTSKY_URL,
     CONF_BUTTON_CLOSE,
     CONF_BUTTON_OPEN,
     CONF_CLIMATE,
@@ -123,6 +128,8 @@ REF_INTERVAL = timedelta(minutes=15)
 REF_QUIET = timedelta(hours=2)
 REF_KEEP = timedelta(days=3)
 REF_MIN_SAMPLES = 8
+BS_INTERVAL = timedelta(minutes=10)
+BS_MAX_AGE = timedelta(minutes=90)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -190,6 +197,11 @@ class DachlukeController:
         self._stored_cfg: dict[str, Any] = {}
         self.ref_samples: deque[tuple] = deque()
         self.last_activity: datetime | None = None
+        self.bs: dict[str, Any] = {}
+        self.bs_fetched: datetime | None = None
+        self._bs_failed = False
+        self._bs_station: str | None = None
+        self._last_restricted: bool | None = None
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -207,6 +219,7 @@ class DachlukeController:
                 self.cfg.get(CONF_CLIMATE) if self.cfg.get(CONF_ROOM_HUMIDITY) else None,
                 self.cfg[CONF_POSITION_SENSOR],
                 self.cfg.get(CONF_WEATHER),
+                self.cfg.get(CONF_RAIN_SENSOR),
                 self.cfg.get(CONF_ALARM),
                 self.cfg.get(CONF_CONTACT),
                 self.cfg.get(CONF_INDOOR_DEW),
@@ -221,6 +234,9 @@ class DachlukeController:
                 self._button_seen[eid] = st.state
         self._unsubs.append(async_track_state_change_event(self.hass, watched, self._handle_event))
         self._unsubs.append(async_track_time_interval(self.hass, self._sample_reference, REF_INTERVAL))
+        if self.cfg[CONF_BRIGHTSKY]:
+            self._unsubs.append(async_track_time_interval(self.hass, self._bs_tick, BS_INTERVAL))
+            self.hass.async_create_task(self._fetch_brightsky())
         hum = self._num(self.cfg[CONF_HUMIDITY_SENSOR])
         if hum is not None:
             self.samples.append((dt_util.utcnow(), hum))
@@ -322,7 +338,9 @@ class DachlukeController:
             f"Licht nötig: {'ja' if self.cfg[CONF_REQUIRE_LIGHT] else 'nein'}, "
             f"Raumsensor: {'ja' if self.cfg.get(CONF_ROOM_HUMIDITY) else 'nein'}, "
             f"absolute Feuchte: {'ja' if self.room_temperature() is not None else 'nein'}, "
-            f"Stagnation: {'ja' if self.cfg[CONF_STALL_ENABLED] else 'nein'}",
+            f"Stagnation: {'ja' if self.cfg[CONF_STALL_ENABLED] else 'nein'}, "
+            f"Außenwerte: {'DWD (Bright Sky)' if self.cfg[CONF_BRIGHTSKY] else 'Wetter-Entität'}, "
+            f"Regen: {'Sensor' if self.cfg.get(CONF_RAIN_SENSOR) else 'DWD-Station' if self.cfg[CONF_BRIGHTSKY] else 'Wetterzustand'}",
         )
         if changed:
             self._log("EINSTELLUNGEN", "Geändert: " + "; ".join(changed)[:900])
@@ -497,7 +515,8 @@ class DachlukeController:
         if self.cfg.get(CONF_WEATHER):
             parts.append(
                 f"außen {self.weather_state() or '?'} {self._fmt(self._weather_attr('temperature'), ' °C', 1)} "
-                f"{self._fmt(self._weather_attr('humidity'), ' %')} TP {self._fmt(self._weather_attr('dew_point'), ' °C', 1)}"
+                f"{self._fmt(self._weather_attr('humidity'), ' %')} TP {self._fmt(self._weather_attr('dew_point'), ' °C', 1)} "
+                f"[{self.outdoor_source()}]"
             )
         if self.cfg.get(CONF_LIGHTS):
             parts.append(f"Licht {'an' if self.lights_on() else 'aus'}")
@@ -615,6 +634,11 @@ class DachlukeController:
             return f"Wetter gesperrt ({weather})"
         if self.frost_active():
             return f"Frost: außen {self._fmt(outdoor, ' °C', 1)} unter {float(self.cfg[CONF_FROST_THRESHOLD]):.0f} °C"
+        rain, rain_src = self.rain_value()
+        if rain is not None:
+            if rain >= float(self.cfg[CONF_RAIN_THRESHOLD]):
+                return f"Regen {rain:.1f} mm ({rain_src})"
+            return f"kein Regen ({rain_src} {rain:.1f} mm)"
         if weather in (self.cfg[CONF_RESTRICTED] or []):
             return f"eingeschränktes Wetter ({weather})"
         if not self.cfg.get(CONF_WEATHER):
@@ -642,10 +666,39 @@ class DachlukeController:
     def weather_blocked(self) -> bool:
         return self.weather_state() in (self.cfg[CONF_BLOCKED] or [])
 
+    def rain_value(self) -> tuple[float | None, str]:
+        """Aktueller Niederschlag (mm) und Quelle, falls eine Mess-Quelle vorhanden ist."""
+        if self.cfg.get(CONF_RAIN_SENSOR):
+            return self._num(self.cfg[CONF_RAIN_SENSOR]), "Regensensor"
+        if self.cfg[CONF_BRIGHTSKY] and self._bs_fresh() and isinstance(self.bs.get("precipitation_10"), (int, float)):
+            return float(self.bs["precipitation_10"]), f"DWD {self._bs_station or '?'} (10 min)"
+        return None, ""
+
+    def restricted_now(self) -> bool | None:
+        """True/False aus Messwerten; None = Wetterzustand entscheidet."""
+        value, _ = self.rain_value()
+        if value is None:
+            return None
+        return value >= float(self.cfg[CONF_RAIN_THRESHOLD])
+
     def weather_restricted(self) -> bool:
-        return self.weather_state() in (self.cfg[CONF_RESTRICTED] or [])
+        r = self.restricted_now()
+        return (self.weather_state() in (self.cfg[CONF_RESTRICTED] or [])) if r is None else r
+
+    def _bs_fresh(self) -> bool:
+        return bool(self.bs) and self.bs_fetched is not None and dt_util.utcnow() - self.bs_fetched < BS_MAX_AGE
+
+    def outdoor_source(self) -> str:
+        if self.cfg[CONF_BRIGHTSKY] and self._bs_fresh():
+            return f"DWD {self._bs_station or '?'}"
+        return "Wetter-Entität" if self.cfg.get(CONF_WEATHER) else "keine"
 
     def _weather_attr(self, key: str) -> float | None:
+        """Außenwerte: DWD-Messung (Bright Sky), sonst Wetter-Entität."""
+        if self.cfg[CONF_BRIGHTSKY] and self._bs_fresh():
+            bs_key = {"temperature": "temperature", "humidity": "relative_humidity", "dew_point": "dew_point"}.get(key)
+            if bs_key and isinstance(self.bs.get(bs_key), (int, float)):
+                return float(self.bs[bs_key])
         st = self._state(self.cfg.get(CONF_WEATHER))
         if not st:
             return None
@@ -676,6 +729,7 @@ class DachlukeController:
             pos_normal=int(self.cfg[CONF_POS_NORMAL]),
             pos_restricted=int(self.cfg[CONF_POS_RESTRICTED]),
             pos_frost=int(self.cfg[CONF_FROST_POSITION]),
+            restricted_now=self.restricted_now(),
         )
 
     def _max_minutes(self) -> float:
@@ -757,6 +811,8 @@ class DachlukeController:
                 await self._evaluate_open("licht")
             if eid == cfg.get(CONF_WEATHER):
                 await self._on_weather(old, new)
+            if eid == cfg.get(CONF_RAIN_SENSOR):
+                await self._check_rain_change()
             if eid == cfg.get(CONF_ALARM):
                 await self._on_alarm()
             if eid == cfg.get(CONF_CONTACT):
@@ -971,15 +1027,71 @@ class DachlukeController:
                                alexa="Wetter gesperrt. Dachluke geschlossen.")
             await self._close("sicherheit", f"Wetter {new.state}")
             return
-        if self.mode in (MODE_AUTO, MODE_SECOND):
-            target = self.target()
-            pos = self.position() or 0
-            if target > 0 and abs(pos - target) >= float(self.cfg[CONF_POS_TOLERANCE]):
-                await self._command_position(target)
-                old_s = old.state if old else "?"
-                self._log("WETTER", f"{old_s} → {new.state}: Position {pos:.0f} % → {target} % – Öffnungsweite: {self.position_reason()}")
-                await self._notify("🪟 Dachluke angepasst", f"Wetter {old_s} → {new.state}. Position {pos:.0f} % → {target} %.",
-                                   critical=True, alexa=f"Neues Wetter. Dachluke auf {target} Prozent angepasst.")
+        old_s = old.state if old else "?"
+        await self._correct_position(f"Wetter {old_s} → {new.state}")
+
+    async def _correct_position(self, why: str) -> None:
+        """Öffnungsweite an Wetter/Regen anpassen, ohne die Lüftung neu zu starten."""
+        if not self.is_open() or self.mode not in (MODE_AUTO, MODE_SECOND):
+            return
+        target = self.target()
+        pos = self.position() or 0
+        if target > 0 and abs(pos - target) >= float(self.cfg[CONF_POS_TOLERANCE]):
+            await self._command_position(target)
+            self._log("WETTER", f"{why}: Position {pos:.0f} % → {target} % – Öffnungsweite: {self.position_reason()}")
+            await self._notify("🪟 Dachluke angepasst", f"{why}. Position {pos:.0f} % → {target} %.",
+                               critical=True, alexa=f"Neues Wetter. Dachluke auf {target} Prozent angepasst.")
+
+    async def _check_rain_change(self) -> None:
+        now = self.restricted_now()
+        if now is None or now == self._last_restricted:
+            self._last_restricted = now
+            return
+        self._last_restricted = now
+        value, src = self.rain_value()
+        await self._correct_position(f"{'Regen' if now else 'Regen vorbei'} ({src} {value or 0:.1f} mm)")
+
+    @callback
+    def _bs_tick(self, _now: datetime) -> None:
+        self.hass.async_create_task(self._fetch_brightsky())
+
+    async def _fetch_brightsky(self) -> None:
+        """DWD-Messwerte der nächsten Station über Bright Sky (frei, ohne Schlüssel)."""
+        # Auf ca. 1 km gerundet: reicht für die Stationssuche, verrät nicht die genaue Adresse
+        params = {"lat": round(self.hass.config.latitude, 2), "lon": round(self.hass.config.longitude, 2)}
+        try:
+            session = async_get_clientsession(self.hass)
+            async with session.get(BRIGHTSKY_URL, params=params, timeout=20) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+            weather = data.get("weather") or {}
+            if isinstance(weather, list):
+                weather = weather[-1] if weather else {}
+            if not isinstance(weather, dict) or "temperature" not in weather:
+                raise ValueError("unerwartete Antwort")
+            sources = data.get("sources") or []
+            main = next((s for s in sources if s.get("id") == weather.get("source_id")), sources[0] if sources else {})
+            station = main.get("station_name") or "?"
+            dist = main.get("distance")
+            label = f"{station}, {dist / 1000:.0f} km" if isinstance(dist, (int, float)) else station
+        except Exception as err:  # noqa: BLE001 – Netz, JSON, Format: immer auf Wetter-Entität zurückfallen
+            if not self._bs_failed:
+                self._log("WETTERQUELLE", f"DWD-Messwerte (Bright Sky) nicht verfügbar ({err}) – nutze Wetter-Entität")
+            self._bs_failed = True
+            self._publish()
+            return
+        self.bs = weather
+        self.bs_fetched = dt_util.utcnow()
+        if self._bs_failed or label != self._bs_station:
+            self._log(
+                "WETTERQUELLE",
+                f"DWD-Messwerte von {label}: {weather.get('temperature')} °C, {weather.get('relative_humidity')} %, "
+                f"Niederschlag 10 min {weather.get('precipitation_10')} mm",
+            )
+        self._bs_failed = False
+        self._bs_station = label
+        await self._check_rain_change()
+        self._publish()
 
     async def _on_alarm(self) -> None:
         if self.alarm_active() and self.is_open() is not False:
