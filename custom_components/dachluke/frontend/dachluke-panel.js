@@ -391,10 +391,30 @@ class DachlukePanel extends HTMLElement {
       ...((s.lights || []).slice(0, 1).map(l => chip(`Licht`, "mdi:lightbulb", `{{ 'amber' if is_state('${l}', 'on') else 'grey' }}`, l))),
     ] };
 
-    const toggle = (entity, name, icon) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity, name, icon });
+    // Schalter: Tippen schaltet direkt (Icon und Fläche), langes Drücken öffnet die Details.
+    // Eingeschaltet leuchtet die Karte in der Primärfarbe des Dashboards.
+    const toggle = (entity, name, icon) => {
+      const on = `hass.states['${entity}'] && hass.states['${entity}'].state === 'on'`;
+      return {
+        type: "custom:bubble-card", card_type: "button", button_type: "switch", entity, name, icon,
+        tap_action: { action: "toggle" },
+        hold_action: { action: "more-info" },
+        button_action: { tap_action: { action: "toggle" }, hold_action: { action: "more-info" } },
+        styles: [
+          ".bubble-button-card-container {",
+          `  background: \${${on} ? 'rgba(var(--rgb-primary-color), 0.30)' : ''} !important;`,
+          `  box-shadow: \${${on} ? '0 0 14px rgba(var(--rgb-primary-color), 0.55)' : 'none'} !important;`,
+          "}",
+          ".bubble-icon {",
+          `  color: \${${on} ? 'var(--primary-color)' : ''} !important;`,
+          "}",
+        ].join("\n"),
+      };
+    };
     const press = (entity, name, icon, visibility) => ({
       type: "custom:bubble-card", card_type: "button", button_type: "name", entity, name, icon,
       tap_action: { action: "perform-action", perform_action: "button.press", target: { entity_id: entity } },
+      button_action: { tap_action: { action: "perform-action", perform_action: "button.press", target: { entity_id: entity } } },
       grid_options: { columns: 6 },
       ...(visibility ? { visibility } : {}),
     });
