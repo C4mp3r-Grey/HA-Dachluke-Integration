@@ -46,6 +46,7 @@ Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie 
 | Zweiter gleicher Tastendruck | wurde nicht erkannt (Attribut-Trigger) | jeder Druck wird erkannt |
 | Öffnen per Dashboard, Alexa, CCU | kein Timer, Luke blieb offen | jede Öffnung bekommt einen Timer |
 | Schließen | feste 65 % oder Taupunkt | sobald die Feuchte wieder beim *Ausgangswert vor dem Duschen* liegt: mit Temperatursensor nach **absoluter** Feuchte (+1 g/m³), sonst nach relativer (+3 %). Feste Schwelle und Taupunkt gibt es optional zusätzlich |
+| Erhöhte Ausgangsfeuchte | – | war der Raum vor dem Duschen schon feuchter als üblich, gilt die **übliche Raumfeuchte** als Ziel (Median aus Ruhephasen der letzten 3 Tage). Untergrenze ist die absolute Feuchte draußen + 0,5 g/m³ |
 | Trocknung stagniert | Luke blieb bis Zeitablauf offen | schließt, wenn die Feuchte nach dem Duschen 10 min lang um weniger als 1 % fällt (z. B. bei feuchter Außenluft) |
 | Maximale Öffnungsdauer | ab Öffnen | ab **Duschende** (Feuchte fällt um 3 % vom Höchstwert). Während des Duschens bleibt die Luke offen, Obergrenze 90 min |
 | Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik |

@@ -37,6 +37,11 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
         attrs=lambda c: {
             "hindernisse_oeffnen": c.open_blockers(),
             "zielposition": c.target(),
+            "uebliche_raumfeuchte": c.reference()[0],
+            "uebliche_raumfeuchte_absolut": c.reference()[1],
+            "aussenfeuchte_absolut": c.outdoor_abs_humidity(),
+            "schliessen_bei": c.close_targets()[0],
+            "schliessen_bei_absolut": c.close_targets()[1],
             "pause_bis": c.pause_until.isoformat() if c.pause_until else None,
             "hoechstwert_feuchte": c.peak,
             "duschende": c.shower_end.isoformat() if c.shower_end else None,

@@ -13,7 +13,11 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.components import persistent_notification
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -114,6 +118,10 @@ PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
 CONFIRM_DELAY = timedelta(seconds=30)
 BUTTON_WINDOW = timedelta(seconds=90)
+REF_INTERVAL = timedelta(minutes=15)
+REF_QUIET = timedelta(hours=2)
+REF_KEEP = timedelta(days=3)
+REF_MIN_SAMPLES = 8
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -176,6 +184,8 @@ class DachlukeController:
         self._move_start: datetime | None = None
         self._last_pos_change: datetime | None = None
         self._stored_cfg: dict[str, Any] = {}
+        self.ref_samples: deque[tuple[datetime, float | None, float | None]] = deque()
+        self.last_activity: datetime | None = None
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -206,6 +216,7 @@ class DachlukeController:
             if st:
                 self._button_seen[eid] = st.state
         self._unsubs.append(async_track_state_change_event(self.hass, watched, self._handle_event))
+        self._unsubs.append(async_track_time_interval(self.hass, self._sample_reference, REF_INTERVAL))
         hum = self._num(self.cfg[CONF_HUMIDITY_SENSOR])
         if hum is not None:
             self.samples.append((dt_util.utcnow(), hum))
@@ -237,6 +248,10 @@ class DachlukeController:
         self.last_shower_minutes = data.get("last_shower_minutes")
         self.max_pos = data.get("max_pos", 0.0)
         self._stored_cfg = data.get("cfg", {})
+        self.last_activity = _dt(data.get("last_activity"))
+        for item in data.get("ref", []):
+            if (t := _dt(item[0])) is not None:
+                self.ref_samples.append((t, item[1], item[2]))
         self.pause_until = _dt(data.get("pause_until"))
         self.second_at = _dt(data.get("second_at"))
         self.saved_setpoint = data.get("saved_setpoint")
@@ -266,6 +281,8 @@ class DachlukeController:
             "last_shower_minutes": self.last_shower_minutes,
             "max_pos": self.max_pos,
             "cfg": {k: v for k, v in self.cfg.items() if k in DEFAULTS},
+            "last_activity": _ts(self.last_activity),
+            "ref": [[_ts(t), rh, ah] for t, rh, ah in self.ref_samples],
             "pause_until": _ts(self.pause_until),
             "second_at": _ts(self.second_at),
             "saved_setpoint": self.saved_setpoint,
@@ -474,6 +491,72 @@ class DachlukeController:
             parts.append(f"Heizung {clim.state} {clim.attributes.get('temperature', '?')} °C")
         return ", ".join(parts)
 
+    # ── Referenz: übliche Raumfeuchte in Ruhephasen ───────────────────────
+    def outdoor_abs_humidity(self) -> float | None:
+        temp, hum = self._weather_attr("temperature"), self._weather_attr("humidity")
+        if temp is None or hum is None:
+            return None
+        return logic.absolute_humidity(temp, hum)
+
+    def reference(self) -> tuple[float | None, float | None]:
+        if len(self.ref_samples) < REF_MIN_SAMPLES:
+            return None, None
+        return (
+            logic.median([rh for _, rh, _ in self.ref_samples]),
+            logic.median([ah for _, _, ah in self.ref_samples]),
+        )
+
+    def close_targets(self) -> tuple[float | None, float | None]:
+        ref_rh, ref_ah = self.reference()
+        return logic.close_targets(
+            baseline=self.baseline,
+            baseline_ah=self.baseline_ah,
+            ref_rh=ref_rh,
+            ref_ah=ref_ah,
+            outdoor_ah=self.outdoor_abs_humidity(),
+        )
+
+    def target_source(self, *, absolute: bool) -> str:
+        ref_rh, ref_ah = self.reference()
+        base, ref = (self.baseline_ah, ref_ah) if absolute else (self.baseline, ref_rh)
+        out = self.outdoor_abs_humidity()
+        _, target_ah = self.close_targets()
+        if absolute and out is not None and target_ah is not None and abs(target_ah - (out + 0.5)) < 0.01:
+            return f"Außenluft {out:.1f} g/m³ + 0,5"
+        if ref is not None and (base is None or ref < base):
+            return f"übliche Raumfeuchte statt erhöhter Ausgangsfeuchte {self._fmt(base, '', 1 if absolute else 0)}"
+        return "Ausgangsfeuchte vor dem Duschen"
+
+    def _target_text(self) -> str:
+        ref_rh, ref_ah = self.reference()
+        t_rh, t_ah = self.close_targets()
+        out = self.outdoor_abs_humidity()
+        txt = f"Schließen bei {self._fmt(t_rh, ' %')}"
+        if t_ah is not None:
+            txt += f" bzw. {self._fmt(t_ah, ' g/m³', 1)}"
+        txt += f" + Offset; üblich {self._fmt(ref_rh, ' %')}" + (f"/{self._fmt(ref_ah, ' g/m³', 1)}" if ref_ah is not None else "")
+        if ref_rh is None:
+            txt += f" (Referenz lernt noch, {len(self.ref_samples)}/{REF_MIN_SAMPLES} Werte)"
+        if out is not None:
+            txt += f"; außen {out:.1f} g/m³"
+        return txt
+
+    @callback
+    def _sample_reference(self, now: datetime) -> None:
+        """Alle 15 min in Ruhephasen die Raumfeuchte merken (für die Referenz)."""
+        now = dt_util.utcnow()
+        if self.mode != MODE_IDLE or self.is_open():
+            return
+        if self.last_activity and now - self.last_activity < REF_QUIET:
+            return
+        rh, ah = self.room_humidity(), self.abs_humidity()
+        if rh is None:
+            return
+        self.ref_samples.append((now, rh, ah))
+        while self.ref_samples and self.ref_samples[0][0] < now - REF_KEEP:
+            self.ref_samples.popleft()
+        self._store.async_delay_save(self._serialize, 30)
+
     def position_reason(self) -> str:
         """Warum die Zielposition so gewählt wird."""
         weather = self.weather_state()
@@ -655,6 +738,7 @@ class DachlukeController:
         if self.shower is None and rise >= float(self.cfg[CONF_SHOWER_DETECT]):
             self.shower = {"start": now, "max_rise": rise, "light": self.lights_on(), "blockers": set()}
             self.counters["showers"] += 1
+            self.last_activity = now
             self._at("shower", now + SHOWER_CHECK, self._shower_check)
         if self.shower is not None:
             self.shower["max_rise"] = max(self.shower["max_rise"], rise)
@@ -891,7 +975,8 @@ class DachlukeController:
             "AUTO_AUF",
             f"Automatisch geöffnet auf {target} % – Öffnungsweite: {self.position_reason()} "
             f"(Auslöser {trigger}, +{self.rise or 0:.1f} %/5 min, Basis {self.baseline or 0:.0f} %"
-            f"{f' / {self.baseline_ah:.1f} g/m³' if self.baseline_ah is not None else ''}{since}); {self.context()}",
+            f"{f' / {self.baseline_ah:.1f} g/m³' if self.baseline_ah is not None else ''}{since}); "
+            f"{self._target_text()}; {self.context()}",
         )
         await self._notify("🪟 Dachluke geöffnet", f"{target} %, Steigung +{self.rise:.1f} %/5 min, rF {hum:.0f} %.{frost}",
                            alexa="Dachluke geöffnet. Lüftung aktiv.")
@@ -902,12 +987,13 @@ class DachlukeController:
         if dt_util.utcnow() - self.opened_at < timedelta(minutes=float(self.cfg[CONF_MIN_OPEN])):
             return
         indoor_dew = self._num(self.cfg.get(CONF_INDOOR_DEW))
+        target_rh, target_ah = self.close_targets()
         reason = logic.close_reason(
             humidity=self.room_humidity(),
-            baseline=self.baseline,
+            baseline=target_rh,
             close_offset=float(self.cfg[CONF_CLOSE_OFFSET]),
             abs_humidity=self.abs_humidity(),
-            baseline_ah=self.baseline_ah,
+            baseline_ah=target_ah,
             ah_offset=float(self.cfg[CONF_CLOSE_AH_OFFSET]),
             close_abs=float(self.cfg[CONF_CLOSE_ABS]),
             indoor_dew=indoor_dew,
@@ -917,9 +1003,15 @@ class DachlukeController:
         )
         if reason:
             if reason == "absolut":
-                text = f"Absolute Feuchte {self.abs_humidity() or 0:.1f} g/m³ wieder nahe Ausgangswert {self.baseline_ah or 0:.1f} g/m³"
+                text = (
+                    f"Absolute Feuchte {self.abs_humidity() or 0:.1f} g/m³ wieder nahe Bezugswert {target_ah or 0:.1f} g/m³ "
+                    f"({self.target_source(absolute=True)})"
+                )
             elif reason == "basis":
-                text = f"{'Raumfeuchte' if self.has_room else 'Feuchte'} {self.room_humidity() or 0:.0f} % wieder nahe Ausgangswert {self.baseline or 0:.0f} %"
+                text = (
+                    f"{'Raumfeuchte' if self.has_room else 'Feuchte'} {self.room_humidity() or 0:.0f} % wieder nahe "
+                    f"Bezugswert {target_rh or 0:.0f} % ({self.target_source(absolute=False)})"
+                )
             elif reason == "schwelle":
                 text = f"{'Raumfeuchte' if self.has_room else 'Feuchte'} {self.room_humidity() or 0:.0f} % unter {float(self.cfg[CONF_CLOSE_ABS]):.0f} %"
             else:
@@ -979,6 +1071,7 @@ class DachlukeController:
             parts.append(f"absolut {self._fmt(self.baseline_ah, '', 1)} → {self._fmt(ah, ' g/m³', 1)}")
         if self.last_shower_minutes is not None and self.shower_end:
             parts.append(f"Duschen ca. {self.last_shower_minutes:.0f} min")
+        parts.append(self._target_text())
         parts.append(self.context())
         self._log("BILANZ", "; ".join(parts))
 
@@ -996,6 +1089,7 @@ class DachlukeController:
         self.peak_time = None
         self.baseline_ah = None
         self.room_peak = None
+        self.last_activity = now
         for key in ("vent", "min_open", "stall"):
             self._cancel(key)
         await self._heating_restore()

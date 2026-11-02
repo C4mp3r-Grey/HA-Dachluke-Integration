@@ -91,6 +91,41 @@ def absolute_humidity(temp_c: float, rh: float) -> float:
     return round(216.7 * (rh / 100 * saturation) / (273.15 + temp_c), 2)
 
 
+def median(values: Sequence[float]) -> float | None:
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return None
+    mid = len(vals) // 2
+    return vals[mid] if len(vals) % 2 else round((vals[mid - 1] + vals[mid]) / 2, 2)
+
+
+def close_targets(
+    *,
+    baseline: float | None,
+    baseline_ah: float | None,
+    ref_rh: float | None,
+    ref_ah: float | None,
+    outdoor_ah: float | None,
+    outdoor_margin: float = 0.5,
+) -> tuple[float | None, float | None]:
+    """Bezugswerte zum Schließen.
+
+    War die Raumluft vor dem Duschen schon feuchter als üblich (z. B. kurz nach
+    einer anderen Dusche), wird der übliche Wert (Referenz) genommen. Sonst
+    würde jede Dusche auf einem höheren Niveau starten und die Lüftung immer
+    kürzer werden. Die absolute Feuchte draußen ist die physikalische Untergrenze.
+    """
+    rh = baseline
+    if ref_rh is not None and (rh is None or ref_rh < rh):
+        rh = ref_rh
+    ah = baseline_ah
+    if ref_ah is not None and (ah is None or ref_ah < ah):
+        ah = ref_ah
+    if ah is not None and outdoor_ah is not None:
+        ah = max(ah, outdoor_ah + outdoor_margin)
+    return rh, ah
+
+
 def target_position(
     *,
     weather_state: str | None,
