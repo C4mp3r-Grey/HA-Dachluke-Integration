@@ -61,6 +61,9 @@ async def test_elevated_baseline_uses_reference(hass, freezer):
     await step(hass, freezer, 3, ROOM, "67")
     assert not calls["close"]
     await step(hass, freezer, 3, ROOM, "63")
+    await step(hass, freezer, 3, HUM, "70")      # Dusche über üblichen 62 % + 3 (Referenz des Duschsensors)
+    assert not calls["close"]
+    await step(hass, freezer, 3, HUM, "64")      # Dusche ≤ übliche 62 + 3
     assert calls["close"]
     zu = [p["text"] for p in c.protocol if p["code"] == "ZU"][-1]
     assert "übliche Raumfeuchte statt erhöhter Ausgangsfeuchte" in zu

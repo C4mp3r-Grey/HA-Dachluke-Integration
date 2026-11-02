@@ -86,7 +86,8 @@
           "hard_cap": "Maximum total duration",
           "stall_enabled": "Close when drying stalls",
           "stall_minutes": "Observation period",
-          "stall_delta": "Stalled if humidity drops less than"
+          "stall_delta": "Stalled if humidity drops less than",
+          "extend_while_drying": "Keep venting while drying progresses"
         }
       },
       "weather": {

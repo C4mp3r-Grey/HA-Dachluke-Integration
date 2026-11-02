@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.5.1"
+VERSION: Final = "1.6.0"
 
 SIGNAL_UPDATE: Final = "dachluke_update_{}"
 
@@ -38,6 +38,7 @@ CONF_HARD_CAP: Final = "hard_cap"
 CONF_STALL_ENABLED: Final = "stall_enabled"
 CONF_STALL_MINUTES: Final = "stall_minutes"
 CONF_STALL_DELTA: Final = "stall_delta"
+CONF_EXTEND: Final = "extend_while_drying"
 CONF_MIN_OPEN: Final = "min_open"
 CONF_MAX_OPEN: Final = "max_open"
 CONF_MANUAL_DURATION: Final = "manual_duration"
@@ -134,6 +135,7 @@ DEFAULTS: Final[dict] = {
     CONF_STALL_ENABLED: True,
     CONF_STALL_MINUTES: 10,
     CONF_STALL_DELTA: 1.0,
+    CONF_EXTEND: True,
     CONF_MIN_OPEN: 5,
     CONF_MAX_OPEN: 20,
     CONF_MANUAL_DURATION: 15,
