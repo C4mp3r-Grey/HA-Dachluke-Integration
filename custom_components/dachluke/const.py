@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.4.0"
+VERSION: Final = "1.4.1"
 
 SIGNAL_UPDATE: Final = "dachluke_update_{}"
 
@@ -25,6 +25,7 @@ CONF_WEATHER: Final = "weather"
 CONF_LIGHTS: Final = "lights"
 CONF_REQUIRE_LIGHT: Final = "require_light"
 CONF_FAN: Final = "fan"
+CONF_FAN_CONTROL: Final = "fan_control"
 
 # ── Öffnen / Schließen ──────────────────────────────────────────────────
 CONF_RISE_THRESHOLD: Final = "rise_threshold"
@@ -118,6 +119,7 @@ DEFAULTS: Final[dict] = {
     CONF_LIGHTS: [],
     CONF_REQUIRE_LIGHT: False,
     CONF_FAN: None,
+    CONF_FAN_CONTROL: True,
     CONF_TEMP_SENSOR: None,
     CONF_ROOM_HUMIDITY: None,
     CONF_ROOM_TEMP: None,

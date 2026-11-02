@@ -104,7 +104,7 @@ Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert d
 
 - Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.2.3) und automatisierten Abläufen, **nicht an echter Hardware**. Die ersten Tage bitte beobachten.
 - Die Seitenleisten-Seite nutzt die offizielle Schnittstelle für eigene Panels (`panel_custom`). Sie ist kein bearbeitbares Lovelace-Dashboard. Dafür gibt es die erzeugte YAML.
-- Der Lüfter wird nur aufgezeichnet, nicht geschaltet.
+- Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat.
 
 ## Entwicklung
 

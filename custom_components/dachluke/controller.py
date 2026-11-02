@@ -38,6 +38,7 @@ from .const import (
     CONF_DEW_OFFSET,
     CONF_DWD,
     CONF_FAN,
+    CONF_FAN_CONTROL,
     CONF_FROST_DURATION,
     CONF_FROST_ENABLED,
     CONF_FROST_POSITION,
@@ -152,6 +153,7 @@ class DachlukeController:
         self.second_at: datetime | None = None
         self.saved_setpoint: float | None = None
         self.heating_lowered = False
+        self.fan_started = False
         self.blocked_override = False
         self.last_duration: float | None = None
         self.last_open: datetime | None = None
@@ -239,6 +241,7 @@ class DachlukeController:
         self.second_at = _dt(data.get("second_at"))
         self.saved_setpoint = data.get("saved_setpoint")
         self.heating_lowered = data.get("heating_lowered", False)
+        self.fan_started = data.get("fan_started", False)
         self.blocked_override = data.get("blocked_override", False)
         self.last_duration = data.get("last_duration")
         self.last_open = _dt(data.get("last_open"))
@@ -267,6 +270,7 @@ class DachlukeController:
             "second_at": _ts(self.second_at),
             "saved_setpoint": self.saved_setpoint,
             "heating_lowered": self.heating_lowered,
+            "fan_started": self.fan_started,
             "blocked_override": self.blocked_override,
             "last_duration": self.last_duration,
             "last_shower_minutes": self.last_shower_minutes,
@@ -325,8 +329,9 @@ class DachlukeController:
             self.vent_end = now + timedelta(minutes=self._manual_minutes())
             self._at("vent", self.vent_end, self._vent_elapsed)
             self._log("NEUSTART", "Luke beim Start offen vorgefunden – Timer gestartet")
-        elif self.heating_lowered:
+        elif self.heating_lowered or self.fan_started:
             await self._heating_restore()
+            await self._fan_off()
         self._publish()
 
     # ════════════════════════════════════════════════════════════════════
@@ -738,6 +743,7 @@ class DachlukeController:
         self.counters["open_manual"] += 1
         self._set_vent_end(now + timedelta(minutes=self._manual_minutes()))
         await self._heating_lower()
+        await self._fan_on()
         if self.weather_blocked():
             self.blocked_override = True
             limit = min(int(self.cfg[CONF_POS_RESTRICTED]), int(self.cfg[CONF_FROST_POSITION]) if self.frost_active() else 100)
@@ -876,6 +882,7 @@ class DachlukeController:
         self.second_at = None
         await self._command_position(target)
         await self._heating_lower()
+        await self._fan_on()
         hum = self.humidity()
         frost = " ❄️ Frost" if self.frost_active() else ""
         start = self.shower_start
@@ -992,6 +999,7 @@ class DachlukeController:
         for key in ("vent", "min_open", "stall"):
             self._cancel(key)
         await self._heating_restore()
+        await self._fan_off()
 
     # ════════════════════════════════════════════════════════════════════
     # Zeitgesteuerte Abläufe
@@ -1122,6 +1130,7 @@ class DachlukeController:
             await self._command_position(target)
             if self.cfg[CONF_SECOND_HEATING]:
                 await self._heating_lower()
+            await self._fan_on()
             self._log("NACHLUEFTEN", f"Zweites Nachlüften bei {hum:.0f} % für {self.cfg[CONF_SECOND_DURATION]} min auf {target} % – Öffnungsweite: {self.position_reason()}; {self.context()}")
             await self._notify("🔄 Dachluke", f"Zweites Nachlüften, Restfeuchte {hum:.0f} %.",
                                alexa=f"Zweites Nachlüften. Restfeuchte {hum:.0f} Prozent.")
@@ -1224,6 +1233,34 @@ class DachlukeController:
         self.saved_setpoint = float(current) if current is not None else None
         self.heating_lowered = True
         await self._call("climate", "set_temperature", {"entity_id": climate, "temperature": float(self.cfg[CONF_HEATING_VENT_TEMP])})
+
+    async def _fan_on(self) -> None:
+        """Lüfter ergänzt die offene Luke. Lief er schon, bleibt er unangetastet."""
+        fan = self.cfg.get(CONF_FAN)
+        if not (fan and self.cfg[CONF_FAN_CONTROL]) or self.fan_started:
+            return
+        st = self._state(fan)
+        if st is None or st.state in BAD_STATES:
+            self._log("FEHLER", f"Lüfter {fan} nicht verfügbar – nicht eingeschaltet")
+            return
+        if st.state == STATE_ON:
+            self._log("LUEFTER", "Lüfter lief bereits – bleibt an, wird später nicht ausgeschaltet")
+            return
+        await self._call(fan.split(".", 1)[0], "turn_on", {"entity_id": fan})
+        self.fan_started = True
+        self._log("LUEFTER", "Lüfter eingeschaltet (Luke offen)")
+
+    async def _fan_off(self) -> None:
+        """Nur ausschalten, wenn die Integration ihn eingeschaltet hat."""
+        fan = self.cfg.get(CONF_FAN)
+        if not self.fan_started or not fan:
+            self.fan_started = False
+            return
+        self.fan_started = False
+        st = self._state(fan)
+        if st is not None and st.state == STATE_ON:
+            await self._call(fan.split(".", 1)[0], "turn_off", {"entity_id": fan})
+            self._log("LUEFTER", "Lüfter ausgeschaltet (Luke zu)")
 
     async def _heating_restore(self) -> None:
         climate = self.cfg.get(CONF_CLIMATE)

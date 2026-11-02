@@ -31,6 +31,7 @@ from .const import (
     CONF_DEW_OFFSET,
     CONF_DWD,
     CONF_FAN,
+    CONF_FAN_CONTROL,
     CONF_FROST_DURATION,
     CONF_FROST_ENABLED,
     CONF_FROST_POSITION,
@@ -132,6 +133,7 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_LIGHTS: (_entity("light", multiple=True), True),
     CONF_REQUIRE_LIGHT: (BOOL, False),
     CONF_FAN: (_entity(["fan", "switch"]), True),
+    CONF_FAN_CONTROL: (BOOL, False),
     CONF_RISE_THRESHOLD: (_num(2, 25, 1, "%/5 min"), False),
     CONF_SHOWER_DETECT: (_num(1, 15, 1, "%/5 min"), False),
     CONF_CLOSE_OFFSET: (_num(0, 15, 1, "%"), False),
@@ -184,7 +186,7 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_DWD: (_entity("sensor"), True),
 }
 
-CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_TEMP_SENSOR, CONF_ROOM_HUMIDITY, CONF_ROOM_TEMP, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN]
+CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_TEMP_SENSOR, CONF_ROOM_HUMIDITY, CONF_ROOM_TEMP, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN, CONF_FAN_CONTROL]
 
 STEPS: dict[str, list[str]] = {
     "core": CORE,

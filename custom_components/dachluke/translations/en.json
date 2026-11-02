@@ -14,9 +14,13 @@
           "fan": "Fan",
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
-          "room_temperature_sensor": "Room temperature (optional)"
+          "room_temperature_sensor": "Room temperature (optional)",
+          "fan_control": "Turn on the fan while the window is open"
         },
-        "description": "More settings are available under Configure afterwards."
+        "description": "More settings are available under Configure afterwards.",
+        "data_description": {
+          "fan": "Recorded and, if enabled below, switched while venting."
+        }
       }
     },
     "error": {
@@ -56,7 +60,11 @@
           "fan": "Fan",
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
-          "room_temperature_sensor": "Room temperature (optional)"
+          "room_temperature_sensor": "Room temperature (optional)",
+          "fan_control": "Turn on the fan while the window is open"
+        },
+        "data_description": {
+          "fan": "Recorded and, if enabled below, switched while venting."
         }
       },
       "venting": {
