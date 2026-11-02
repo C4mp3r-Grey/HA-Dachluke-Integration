@@ -30,6 +30,40 @@ const COLORS = {
   fan: "#6250d6", auto: "#1baf7a", manual: "#e87ba4", pause: "#8a959b", warn: "#d03b3b",
 };
 
+// Kleiner YAML-Schreiber für die Dashboard-Vorlage (Objekte, Listen, Strings, Zahlen, Booleans)
+function yamlScalar(v) {
+  if (v === null || v === undefined) return "null";
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  const t = String(v);
+  if (/^[A-Za-z0-9_.\-\/äöüÄÖÜß ]+$/.test(t) && !/^(true|false|null|yes|no|on|off|~|-?\d[\d.]*)$/i.test(t) && !/^\s|\s$/.test(t) && !t.startsWith("- ")) return t;
+  return JSON.stringify(t);
+}
+function toYaml(v, ind = 0) {
+  const pad = " ".repeat(ind);
+  if (Array.isArray(v)) {
+    if (!v.length) return pad + "[]";
+    return v.map(item => {
+      if (item && typeof item === "object") {
+        const inner = toYaml(item, ind + 2).replace(/^\s+/, "");
+        return `${pad}- ${inner}`;
+      }
+      return `${pad}- ${yamlScalar(item)}`;
+    }).join("\n");
+  }
+  if (v && typeof v === "object") {
+    return Object.entries(v).filter(([, x]) => x !== undefined).map(([k, x]) => {
+      if (typeof x === "string" && x.includes("\n")) {
+        return `${pad}${k}: |-\n` + x.split("\n").map(l => " ".repeat(ind + 2) + l).join("\n");
+      }
+      if (x && typeof x === "object" && (Array.isArray(x) ? x.length : Object.keys(x).length)) {
+        return `${pad}${k}:\n${toYaml(x, ind + 2)}`;
+      }
+      return `${pad}${k}: ${Array.isArray(x) ? "[]" : (x && typeof x === "object") ? "{}" : yamlScalar(x)}`;
+    }).join("\n");
+  }
+  return pad + yamlScalar(v);
+}
+
 class DachlukePanel extends HTMLElement {
   constructor() {
     super();
@@ -114,6 +148,7 @@ class DachlukePanel extends HTMLElement {
         td.t{white-space:nowrap;font-variant-numeric:tabular-nums}
         td.c{white-space:nowrap;font-family:monospace;font-size:12px}
         textarea{width:100%;min-height:220px;font-family:monospace;font-size:12px;background:var(--primary-background-color);color:var(--primary-text-color);border:1px solid var(--divider-color);border-radius:8px;padding:8px;box-sizing:border-box}
+        select#yamlvariant{font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--divider-color);background:var(--primary-background-color);color:var(--primary-text-color)}
         input[type=search]{font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--divider-color);background:var(--primary-background-color);color:var(--primary-text-color)}
         details summary{cursor:pointer;font-weight:600}
         .err{color:${COLORS.warn}}
@@ -143,7 +178,14 @@ class DachlukePanel extends HTMLElement {
         <section class="card">
           <details><summary>Dashboard-YAML für ein eigenes Dashboard</summary>
             <p class="muted">Neues Dashboard anlegen → Bearbeiten → Raw-Konfigurationseditor → Inhalt ersetzen. Die Entity-IDs sind deine echten.</p>
-            <div class="row"><button id="copyyaml">YAML kopieren</button><span class="muted" id="copied"></span></div>
+            <div class="row">
+              <label class="muted" for="yamlvariant">Variante</label>
+              <select id="yamlvariant">
+                <option value="custom">Mit Bubble Card, Mushroom und mini-graph-card</option>
+                <option value="standard">Nur Standardkarten</option>
+              </select>
+              <button id="copyyaml">YAML kopieren</button><span class="muted" id="copied"></span>
+            </div>
             <textarea id="yaml" readonly aria-label="Dashboard-YAML"></textarea>
           </details>
         </section>
@@ -156,6 +198,7 @@ class DachlukePanel extends HTMLElement {
     r.getElementById("entry").addEventListener("change", e => { this._entry = e.target.value; this._renderAll(); this._fetchHistory(); });
     r.getElementById("filter").addEventListener("input", e => { this._filter = e.target.value.toLowerCase(); this._renderLog(); });
     r.getElementById("copylog").addEventListener("click", () => this._copy(this._logCsv(), "copylog"));
+    r.getElementById("yamlvariant").addEventListener("change", () => this._renderYaml());
     r.getElementById("copyyaml").addEventListener("click", () => this._copy(r.getElementById("yaml").value, "copyyaml"));
     const rg = r.getElementById("ranges");
     RANGES.forEach(([h, label]) => {
@@ -268,53 +311,147 @@ class DachlukePanel extends HTMLElement {
 
   _renderYaml() {
     const c = this._cur; if (!c) return;
+    const variant = this.shadowRoot.getElementById("yamlvariant")?.value || "custom";
+    const cfg = variant === "standard" ? this._dashStandard(c) : this._dashCustom(c);
+    this.shadowRoot.getElementById("yaml").value = toYaml(cfg) + "\n";
+  }
+
+  _dashStandard(c) {
     const e = c.entities, s = c.sources;
-    const L = [];
-    const add = (indent, text) => L.push(" ".repeat(indent) + text);
-    add(0, "title: Dachluke");
-    add(0, "views:");
-    add(2, "- title: Dachluke");
-    add(4, "path: dachluke");
-    add(4, "type: sections");
-    add(4, "max_columns: 3");
-    add(4, "sections:");
-    // Abschnitt 1: Zustand
-    add(6, "- type: grid");
-    add(8, "cards:");
-    [e.status, e.automatic, e.pause, e.vent_end, s.humidity, e.absolute_humidity, e.humidity_rise].filter(Boolean).forEach(id => {
-      add(10, "- type: tile"); add(12, `entity: ${id}`);
-    });
-    // Abschnitt 2: Analyse
-    add(6, "- type: grid");
-    add(8, "cards:");
-    add(10, "- type: entities");
-    add(12, "title: Analyse");
-    add(12, "entities:");
-    COUNTER_TEXT.forEach(([k, label]) => {
-      if (!e[`count_${k}`]) return;
-      add(14, `- entity: ${e[`count_${k}`]}`); add(16, `name: ${label}`);
-    });
-    [e.last_duration, e.last_shower_duration, e.reset_counters].filter(Boolean).forEach(id => add(14, `- entity: ${id}`));
-    // Abschnitt 3: Verlauf und Protokoll
-    add(6, "- type: grid");
-    add(8, "cards:");
-    add(10, "- type: history-graph");
-    add(12, "title: Feuchte und Luke");
-    add(12, "hours_to_show: 24");
-    add(12, "entities:");
-    [s.humidity, e.humidity_rise, s.position].filter(Boolean).forEach(id => add(14, `- entity: ${id}`));
-    add(10, "- type: history-graph");
-    add(12, "title: Zustände");
-    add(12, "hours_to_show: 24");
-    add(12, "entities:");
-    [e.open, ...(s.lights || []), s.fan, e.status].filter(Boolean).forEach(id => add(14, `- entity: ${id}`));
-    add(10, "- type: logbook");
-    add(12, "title: Protokoll");
-    add(12, "hours_to_show: 168");
-    add(12, "target:");
-    add(14, "entity_id:");
-    add(16, `- ${e.last_event}`);
-    this.shadowRoot.getElementById("yaml").value = L.join("\n") + "\n";
+    const ids = (...x) => x.flat().filter(Boolean);
+    return {
+      title: "Dachluke",
+      views: [{
+        title: "Dachluke", path: "dachluke", type: "sections", max_columns: 3,
+        sections: [
+          { type: "grid", cards: ids(e.status, e.automatic, e.pause, e.vent_end, s.humidity, e.absolute_humidity, e.humidity_rise).map(id => ({ type: "tile", entity: id })) },
+          { type: "grid", cards: [{ type: "entities", title: "Analyse", entities: [
+            ...COUNTER_TEXT.filter(([k]) => e[`count_${k}`]).map(([k, label]) => ({ entity: e[`count_${k}`], name: label })),
+            ...ids(e.last_duration, e.last_shower_duration, e.reset_counters).map(id => ({ entity: id })),
+          ] }] },
+          { type: "grid", cards: [
+            { type: "history-graph", title: "Feuchte und Luke", hours_to_show: 24, entities: ids(s.humidity, s.room_humidity && s.room_humidity.startsWith("sensor.") ? s.room_humidity : null, e.humidity_rise, s.position).map(id => ({ entity: id })) },
+            { type: "history-graph", title: "Zustände", hours_to_show: 24, entities: ids(e.open, s.lights || [], s.fan, e.status).map(id => ({ entity: id })) },
+            { type: "logbook", title: "Protokoll", hours_to_show: 168, target: { entity_id: [e.last_event] } },
+          ] },
+        ],
+      }],
+    };
+  }
+
+  _dashCustom(c) {
+    const e = c.entities, s = c.sources;
+    const st = e.status, ve = e.vent_end;
+    const roomIsClimate = s.room_humidity && s.room_humidity.startsWith("climate.");
+    const roomExpr = !s.room_humidity ? null
+      : roomIsClimate ? `state_attr('${s.room_humidity}', 'current_humidity')` : `states('${s.room_humidity}')`;
+    const venting = `states('${st}') in ['lueftet_auto', 'lueftet_manuell', 'nachlueften']`;
+    const sep = (name, icon) => ({ type: "custom:bubble-card", card_type: "separator", name, icon });
+    const chip = (content, icon, icon_color, entity) => ({ type: "template", ...(entity ? { entity, tap_action: { action: "more-info" } } : {}), content, icon, icon_color });
+
+    const status = {
+      type: "custom:mushroom-template-card",
+      entity: st,
+      primary: `{{ state_translated('${st}') }}`,
+      secondary: [
+        `{% set s = '${st}' %}`,
+        `{% if ${venting} %}`,
+        `{% set e = states('${ve}') %}`,
+        `{% if e not in ['unknown', 'unavailable', 'none'] %}Schließt spätestens {{ as_timestamp(e) | timestamp_custom('%H:%M') }}{% else %}Lüftet{% endif %}`,
+        `{% else %}`,
+        `{% set h = (state_attr(s, 'hindernisse_oeffnen') or []) | reject('eq', 'Steigung unter Schwelle') | list %}`,
+        `{{ 'Öffnet beim nächsten Feuchteanstieg' if h | length == 0 else 'Öffnet nicht: ' ~ (h | join(', ')) }}`,
+        `{% endif %}`,
+      ].join("\n"),
+      icon: [
+        `{% set s = states('${st}') %}`,
+        `{{ 'mdi:window-open-variant' if s in ['lueftet_auto', 'lueftet_manuell', 'nachlueften']`,
+        `   else 'mdi:pause-circle' if s == 'pause'`,
+        `   else 'mdi:alert-circle' if s in ['gesperrt_alarm', 'gesperrt_wetter', 'sensor_fehlt']`,
+        `   else 'mdi:power-off' if s == 'deaktiviert' else 'mdi:window-closed-variant' }}`,
+      ].join("\n"),
+      icon_color: [
+        `{% set s = states('${st}') %}`,
+        `{{ 'blue' if s in ['lueftet_auto', 'nachlueften'] else 'purple' if s == 'lueftet_manuell'`,
+        `   else 'orange' if s == 'pause' else 'red' if s in ['gesperrt_alarm', 'gesperrt_wetter', 'sensor_fehlt']`,
+        `   else 'grey' if s == 'deaktiviert' else 'green' }}`,
+      ].join("\n"),
+      multiline_secondary: true,
+      tap_action: { action: "more-info" },
+    };
+
+    const chips = { type: "custom:mushroom-chips-card", chips: [
+      chip(`{{ states('${s.position}') | int(0) }} %`, `{{ 'mdi:window-open-variant' if states('${s.position}') | int(0) > 0 else 'mdi:window-closed-variant' }}`,
+        `{{ 'blue' if states('${s.position}') | int(0) > 0 else 'grey' }}`, s.position),
+      chip(`Dusche {{ states('${s.humidity}') | int(0) }} %`, "mdi:shower-head", `{{ 'blue' if states('${s.humidity}') | float(0) >= 85 else 'grey' }}`, s.humidity),
+      ...(roomExpr ? [chip(`Raum {{ ${roomExpr} | int(0) }} %`, "mdi:home-thermometer", "teal", s.room_humidity)] : []),
+      ...(e.absolute_humidity ? [chip(`{{ states('${e.absolute_humidity}') | round(1) }} g/m³`, "mdi:water", "cyan", e.absolute_humidity)] : []),
+      chip(`außen {{ state_attr('${st}', 'aussenfeuchte_absolut') | round(1) if state_attr('${st}', 'aussenfeuchte_absolut') is number else '–' }} g/m³`, "mdi:weather-partly-rainy", "grey", s.weather || null),
+      ...(s.fan ? [chip(`Lüfter`, "mdi:fan", `{{ 'green' if is_state('${s.fan}', 'on') else 'grey' }}`, s.fan)] : []),
+      ...((s.lights || []).slice(0, 1).map(l => chip(`Licht`, "mdi:lightbulb", `{{ 'amber' if is_state('${l}', 'on') else 'grey' }}`, l))),
+    ] };
+
+    const toggle = (entity, name, icon) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity, name, icon });
+
+    const humidityGraph = {
+      type: "custom:mini-graph-card", name: "Feuchte", icon: "mdi:water-percent",
+      hours_to_show: 24, points_per_hour: 12, line_width: 2, hour24: true,
+      lower_bound: 40, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
+      show: { labels: true, labels_secondary: true, legend: true, fill: false, points: false },
+      entities: [
+        { entity: s.humidity, name: "Dusche", color: "#2a78d6" },
+        ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity" } : {}), name: "Raum", color: "#00838f" }] : []),
+        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max" },
+      ],
+    };
+
+    const absGraph = e.absolute_humidity ? {
+      type: "custom:mini-graph-card", name: "Absolute Feuchte", icon: "mdi:water", unit: "g/m³",
+      hours_to_show: 24, points_per_hour: 6, line_width: 2, hour24: true,
+      show: { labels: true, legend: true, fill: false, points: false },
+      entities: [
+        { entity: e.absolute_humidity, name: "Raum", color: "#00838f" },
+        { entity: st, attribute: "schliessen_bei_absolut", name: "Schließziel", color: "#eb6834", smoothing: false },
+        { entity: st, attribute: "aussenfeuchte_absolut", name: "Außen", color: "#8a959b" },
+      ],
+    } : null;
+
+    const analysis = { type: "entities", title: "Seit letztem Zurücksetzen", show_header_toggle: false, entities: [
+      ...COUNTER_TEXT.filter(([k]) => e[`count_${k}`]).map(([k, label]) => ({ entity: e[`count_${k}`], name: label })),
+      { type: "divider" },
+      ...[[e.last_duration, "Dauer letzte Lüftung"], [e.last_shower_duration, "Dauer letztes Duschen (geschätzt)"]].filter(([id]) => id).map(([entity, name]) => ({ entity, name })),
+      ...(e.reset_counters ? [{ entity: e.reset_counters, name: "Analyse zurücksetzen" }] : []),
+    ] };
+
+    const states = { type: "history-graph", title: "Zustände", hours_to_show: 24,
+      entities: [e.open, ...(s.lights || []), s.fan, st].filter(Boolean).map(entity => ({ entity })) };
+
+    return {
+      title: "Dachluke",
+      views: [{
+        title: "Dachluke", path: "dachluke", icon: "mdi:window-open-variant", type: "sections", max_columns: 3,
+        sections: [
+          { type: "grid", cards: [
+            sep("Jetzt", "mdi:window-open-variant"),
+            { ...status, grid_options: { columns: "full" } },
+            { ...chips, grid_options: { columns: "full" } },
+            toggle(e.automatic, "Automatik", "mdi:robot"),
+            toggle(e.pause, "Pause", "mdi:pause"),
+          ] },
+          { type: "grid", cards: [
+            sep("Verlauf", "mdi:chart-line"),
+            { ...humidityGraph, grid_options: { columns: "full" } },
+            ...(absGraph ? [{ ...absGraph, grid_options: { columns: "full" } }] : []),
+            { ...states, grid_options: { columns: "full" } },
+          ] },
+          { type: "grid", cards: [
+            sep("Analyse", "mdi:clipboard-text-search-outline"),
+            { ...analysis, grid_options: { columns: "full" } },
+            { type: "logbook", title: "Protokoll", hours_to_show: 168, target: { entity_id: [e.last_event] }, grid_options: { columns: "full" } },
+          ] },
+        ],
+      }],
+    };
   }
 
   async _fetchHistory() {
