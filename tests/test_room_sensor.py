@@ -64,3 +64,22 @@ async def test_room_humidity_from_climate_attribute(hass, freezer):
     hass.states.async_set(CLIMATE, "auto", {"current_temperature": 21.5, "current_humidity": 70, "temperature": 21})
     await step(hass, freezer, 3)
     assert c.room_peak == 70
+
+
+async def test_no_close_while_showering_and_duration_set(hass, freezer):
+    entry, calls = await _setup(hass, freezer)
+    c = entry.runtime_data
+    await step(hass, freezer, 3, HUM, "75")
+    await step(hass, freezer, 2, HUM, "95")       # öffnet
+    for v in ("99", "100", "100", "100"):         # 12 min Duschen, Raum reagiert kaum
+        await step(hass, freezer, 3, HUM, v)
+        hass.states.async_set(ROOM, "61")
+    await hass.async_block_till_done()
+    assert not calls["close"], "während des Duschens nicht schließen"
+    await step(hass, freezer, 3, HUM, "92")       # Duschende
+    assert c.last_shower_minutes is not None and c.last_shower_minutes >= 10
+    await step(hass, freezer, 6, ROOM, "61")
+    assert calls["close"]
+    from homeassistant.helpers import entity_registry as er
+    eid = er.async_get(hass).async_get_entity_id("sensor", "dachluke", f"{entry.entry_id}_last_shower_duration")
+    assert float(hass.states.get(eid).state) >= 10

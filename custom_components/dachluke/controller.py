@@ -986,6 +986,10 @@ class DachlukeController:
             return
         if dt_util.utcnow() - self.opened_at < timedelta(minutes=float(self.cfg[CONF_MIN_OPEN])):
             return
+        if self.shower_end is None:
+            # Solange geduscht wird, nicht wegen Feuchte schließen. Der Raumsensor
+            # reagiert oft erst Minuten später und läge sonst noch am Ausgangswert.
+            return
         indoor_dew = self._num(self.cfg.get(CONF_INDOOR_DEW))
         target_rh, target_ah = self.close_targets()
         reason = logic.close_reason(
@@ -1044,10 +1048,17 @@ class DachlukeController:
         if kind in ("feuchte", "timer", "stagnation") and was_mode == MODE_AUTO:
             self._schedule_second_vent()
 
+    def _estimate_shower(self) -> None:
+        """Geschätzte Duschdauer, auch wenn kein Duschende erkannt wurde."""
+        if self.shower_start and self.peak_time and self.peak_time >= self.shower_start:
+            self.last_shower_minutes = round((self.peak_time - self.shower_start).total_seconds() / 60, 1)
+
     def _log_balance(self, kind: str) -> None:
         """Bilanz einer Lüftung für die spätere Auswertung."""
         if not self.opened_at:
             return
+        if self.shower_end is None and self.mode == MODE_AUTO:
+            self._estimate_shower()
         now = dt_util.utcnow()
         minutes = (now - self.opened_at).total_seconds() / 60
         after = (now - self.shower_end).total_seconds() / 60 if self.shower_end else None
@@ -1069,8 +1080,8 @@ class DachlukeController:
             ]
         if ah is not None or self.baseline_ah is not None:
             parts.append(f"absolut {self._fmt(self.baseline_ah, '', 1)} → {self._fmt(ah, ' g/m³', 1)}")
-        if self.last_shower_minutes is not None and self.shower_end:
-            parts.append(f"Duschen ca. {self.last_shower_minutes:.0f} min")
+        if self.last_shower_minutes is not None and self.shower_start:
+            parts.append(f"Duschen ca. {self.last_shower_minutes:.0f} min" + ("" if self.shower_end else " (kein Duschende erkannt)"))
         parts.append(self._target_text())
         parts.append(self.context())
         self._log("BILANZ", "; ".join(parts))
@@ -1124,12 +1135,16 @@ class DachlukeController:
             self.peak_time = now  # noch am Höchstwert
         if self.shower_end is None:
             if value <= self.peak - drop:
+                if self.peak_time and now - self.peak_time > timedelta(minutes=3):
+                    # Gesättigter Sensor meldet am Höchstwert nichts mehr. Der erste
+                    # fallende Wert kommt kurz nach dem Duschende.
+                    self.peak_time = now - timedelta(minutes=1)
                 self.shower_end = now
                 self._set_vent_end(self._vent_end_for(now))
                 self._schedule_stall_check(now)
                 duration = ""
                 if self.shower_start and self.peak_time and self.peak_time >= self.shower_start:
-                    self.last_shower_minutes = round((self.peak_time - self.shower_start).total_seconds() / 60, 1)
+                    self._estimate_shower()
                     duration = (
                         f"; Duschen geschätzt {self.last_shower_minutes:.0f} min "
                         f"({dt_util.as_local(self.shower_start).strftime('%H:%M')}–{dt_util.as_local(self.peak_time).strftime('%H:%M')})"
