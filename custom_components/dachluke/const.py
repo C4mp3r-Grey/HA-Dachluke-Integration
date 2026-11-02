@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.6.0"
+VERSION: Final = "1.6.1"
 
 SIGNAL_UPDATE: Final = "dachluke_update_{}"
 

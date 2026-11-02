@@ -329,6 +329,20 @@ class DachlukePanel extends HTMLElement {
         type: "history/history_during_period", start_time: start.toISOString(), end_time: end.toISOString(),
         entity_ids: ids, minimal_response: true, no_attributes: true, significant_changes_only: false,
       });
+      this._roomSeries = [];
+      if (s.room_humidity && s.room_humidity.startsWith("climate.")) {
+        // Thermostat liefert die Feuchte nur als Attribut: Verlauf mit Attributen laden
+        const full = await this._hass.callWS({
+          type: "history/history_during_period", start_time: start.toISOString(), end_time: end.toISOString(),
+          entity_ids: [s.room_humidity], minimal_response: false, no_attributes: false, significant_changes_only: false,
+        });
+        let last = null;
+        this._roomSeries = ((full && full[s.room_humidity]) || []).map(x => {
+          const a = x.a || x.attributes;
+          if (a && a.current_humidity != null) last = a.current_humidity;
+          return { t: ((x.lu ?? x.lc) || 0) * 1000, s: last };
+        }).filter(x => x.t && x.s != null).sort((a, b) => a.t - b.t);
+      }
       this._lastFetch = Date.now();
     } catch (err) {
       this.shadowRoot.getElementById("chartmsg").textContent = `Verlauf nicht verfügbar: ${err.message || err}`;
@@ -352,7 +366,7 @@ class DachlukePanel extends HTMLElement {
     const css = n => getComputedStyle(this).getPropertyValue(n).trim() || "#888";
     const ink = css("--secondary-text-color"), grid = css("--divider-color");
     const s = c.sources, e = c.entities;
-    const room = s.room_humidity && s.room_humidity.startsWith("sensor.") ? this._series(s.room_humidity) : [];
+    const room = !s.room_humidity ? [] : s.room_humidity.startsWith("sensor.") ? this._series(s.room_humidity) : (this._roomSeries || []);
     const hum = this._series(s.humidity), rise = this._series(e.humidity_rise), pos = this._series(s.position);
     const status = this._series(e.status), fan = s.fan ? this._series(s.fan) : [];
     const lights = (s.lights || []).map(id => this._series(id));
