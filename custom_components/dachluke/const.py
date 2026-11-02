@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.9.2"
+VERSION: Final = "1.9.3"
 
 # Zeitraum der Dashboard-Diagramme: Schlüssel → (Stunden, Punkte pro Stunde)
 CHART_RANGES: Final = {"6h": (6, 12), "24h": (24, 6), "3d": (72, 2), "7d": (168, 1)}

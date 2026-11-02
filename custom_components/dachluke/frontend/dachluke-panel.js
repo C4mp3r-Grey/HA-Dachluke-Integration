@@ -417,12 +417,12 @@ class DachlukePanel extends HTMLElement {
 
     const RANGES_DASH = [["6h", "6 h", 6, 12], ["24h", "24 h", 24, 6], ["3d", "3 Tage", 72, 2], ["7d", "7 Tage", 168, 1]];
     const humidityGraph = (hours, pph) => ({
-      type: "custom:mini-graph-card", name: "Feuchte", icon: "mdi:water-percent",
+      type: "custom:mini-graph-card", name: "Feuchte Dusche", icon: "mdi:water-percent",
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
       // Feuchte mit Abstand zur Achse; Luke genau 0–100 %
       lower_bound: 30, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
-      // Kein großer Einzelwert (gehörte nur zur ersten Kurve) – Werte stehen an jeder Legende
-      show: { state: false, labels: true, labels_secondary: true, legend: true, fill: false, points: false },
+      // Großer Wert = erste Kurve (Dusche); Name nennt den Sensor, alle Werte zusätzlich an der Legende
+      show: { state: true, labels: true, labels_secondary: true, legend: true, fill: false, points: false },
       entities: [
         { entity: s.humidity, name: "Dusche", color: "#2a78d6", show_legend_state: true },
         ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity", unit: "%" } : {}), name: "Raum", color: "#00838f", show_legend_state: true }] : []),
@@ -430,11 +430,11 @@ class DachlukePanel extends HTMLElement {
       ],
     });
     const absGraph = (hours, pph) => e.absolute_humidity ? {
-      type: "custom:mini-graph-card", name: "Absolute Feuchte", icon: "mdi:water", unit: "g/m³",
+      type: "custom:mini-graph-card", name: e.absolute_humidity && s.room_humidity ? "Absolute Feuchte Raum" : "Absolute Feuchte", icon: "mdi:water", unit: "g/m³",
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
       // Feste Untergrenze 0, damit niedrige Außenwerte nicht auf der Achse kleben; oben weich
       lower_bound: 0, upper_bound: "~20",
-      show: { state: false, labels: true, legend: true, fill: false, points: false },
+      show: { state: true, labels: true, legend: true, fill: false, points: false },
       entities: [
         { entity: e.absolute_humidity, name: "Raum", color: "#00838f", show_legend_state: true },
         { entity: st, attribute: "schliessen_bei_absolut", name: "Schließziel", color: "#eb6834", smoothing: false, unit: "g/m³", show_legend_state: true },
