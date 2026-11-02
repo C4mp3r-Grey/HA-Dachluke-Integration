@@ -7,18 +7,23 @@
           "name": "Name",
           "cover": "Dachluke (Cover-Entität, Kanal 4 des HmIP-BROLL)",
           "position_sensor": "Positionssensor (Kanal 3, LEVEL in %)",
-          "humidity_sensor": "Hygrometer Bad",
+          "humidity_sensor": "Feuchte an der Dusche (erkennt das Duschen)",
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
           "require_light": "Automatisch nur öffnen, wenn Licht an ist",
           "fan": "Lüfter (nur für die Analyse)",
-          "temperature_sensor": "Temperatur Bad (für absolute Feuchte)"
+          "temperature_sensor": "Temperatur an der Dusche (optional)",
+          "room_humidity_sensor": "Raumfeuchte (entscheidet über das Schließen, optional)",
+          "room_temperature_sensor": "Raumtemperatur (optional)"
         },
         "data_description": {
           "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
           "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet.",
-          "temperature_sensor": "Mit Temperatur schließt die Luke nach absoluter Feuchte (g/m³). Heizen senkt dann nicht mehr fälschlich die Messung."
+          "temperature_sensor": "Ohne Raumsensor wird hieraus die absolute Feuchte für das Schließen berechnet.",
+          "humidity_sensor": "Ein schnell reagierender Sensor nahe der Dusche. Er darf auch in die Sättigung (100 %) gehen.",
+          "room_humidity_sensor": "Z. B. das Wandthermostat. Ist er eingetragen, entscheiden Raumfeuchte und Raumtemperatur über Schließen, Stagnation und zweites Nachlüften. Öffnen und Duschende kommen weiter vom Duschsensor. Du kannst auch direkt das Thermostat (climate) wählen, dann wird dessen Attribut „current_humidity“ gelesen.",
+          "room_temperature_sensor": "Leer lassen, um die Ist-Temperatur des Thermostats (Heizung) zu verwenden."
         },
         "description": "Weitere Einstellungen (Heizung, Tasten, Alarm, Benachrichtigungen) findest du danach unter Konfigurieren."
       }
@@ -53,18 +58,23 @@
         "data": {
           "cover": "Dachluke (Cover-Entität, Kanal 4 des HmIP-BROLL)",
           "position_sensor": "Positionssensor (Kanal 3, LEVEL in %)",
-          "humidity_sensor": "Hygrometer Bad",
+          "humidity_sensor": "Feuchte an der Dusche (erkennt das Duschen)",
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
           "require_light": "Automatisch nur öffnen, wenn Licht an ist",
           "fan": "Lüfter (nur für die Analyse)",
-          "temperature_sensor": "Temperatur Bad (für absolute Feuchte)"
+          "temperature_sensor": "Temperatur an der Dusche (optional)",
+          "room_humidity_sensor": "Raumfeuchte (entscheidet über das Schließen, optional)",
+          "room_temperature_sensor": "Raumtemperatur (optional)"
         },
         "data_description": {
           "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
           "fan": "Wird nur protokolliert und auf der Seite angezeigt, nicht geschaltet.",
-          "temperature_sensor": "Mit Temperatur schließt die Luke nach absoluter Feuchte (g/m³). Heizen senkt dann nicht mehr fälschlich die Messung."
+          "temperature_sensor": "Ohne Raumsensor wird hieraus die absolute Feuchte für das Schließen berechnet.",
+          "humidity_sensor": "Ein schnell reagierender Sensor nahe der Dusche. Er darf auch in die Sättigung (100 %) gehen.",
+          "room_humidity_sensor": "Z. B. das Wandthermostat. Ist er eingetragen, entscheiden Raumfeuchte und Raumtemperatur über Schließen, Stagnation und zweites Nachlüften. Öffnen und Duschende kommen weiter vom Duschsensor. Du kannst auch direkt das Thermostat (climate) wählen, dann wird dessen Attribut „current_humidity“ gelesen.",
+          "room_temperature_sensor": "Leer lassen, um die Ist-Temperatur des Thermostats (Heizung) zu verwenden."
         },
         "description": "Welche Entitäten die Luke steuern und messen."
       },

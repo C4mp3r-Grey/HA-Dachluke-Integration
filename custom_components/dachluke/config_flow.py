@@ -70,6 +70,8 @@ from .const import (
     CONF_STALL_ENABLED,
     CONF_STALL_MINUTES,
     CONF_TEMP_SENSOR,
+    CONF_ROOM_HUMIDITY,
+    CONF_ROOM_TEMP,
     CONF_WEATHER,
     DEFAULTS,
     DOMAIN,
@@ -119,6 +121,13 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_POSITION_SENSOR: (_entity("sensor"), False),
     CONF_HUMIDITY_SENSOR: (_entity("sensor", device_class="humidity"), False),
     CONF_TEMP_SENSOR: (_entity("sensor", device_class="temperature"), True),
+    CONF_ROOM_HUMIDITY: (
+        sel.EntitySelector(
+            sel.EntitySelectorConfig(filter=[{"domain": "sensor", "device_class": "humidity"}, {"domain": "climate"}])
+        ),
+        True,
+    ),
+    CONF_ROOM_TEMP: (_entity("sensor", device_class="temperature"), True),
     CONF_WEATHER: (_entity("weather"), True),
     CONF_LIGHTS: (_entity("light", multiple=True), True),
     CONF_REQUIRE_LIGHT: (BOOL, False),
@@ -175,7 +184,7 @@ FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_DWD: (_entity("sensor"), True),
 }
 
-CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_TEMP_SENSOR, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN]
+CORE = [CONF_COVER, CONF_POSITION_SENSOR, CONF_HUMIDITY_SENSOR, CONF_TEMP_SENSOR, CONF_ROOM_HUMIDITY, CONF_ROOM_TEMP, CONF_WEATHER, CONF_LIGHTS, CONF_REQUIRE_LIGHT, CONF_FAN]
 
 STEPS: dict[str, list[str]] = {
     "core": CORE,

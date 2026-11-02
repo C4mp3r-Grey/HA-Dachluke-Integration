@@ -7,12 +7,14 @@
           "name": "Name",
           "cover": "Roof window (cover)",
           "position_sensor": "Position sensor (channel 3)",
-          "humidity_sensor": "Bathroom hygrometer",
+          "humidity_sensor": "Humidity at the shower (detects showering)",
           "weather": "Weather",
           "lights": "Lights",
           "require_light": "Only open automatically when a light is on",
           "fan": "Fan",
-          "temperature_sensor": "Bathroom temperature (for absolute humidity)"
+          "temperature_sensor": "Temperature at the shower (optional)",
+          "room_humidity_sensor": "Room humidity (decides when to close, optional)",
+          "room_temperature_sensor": "Room temperature (optional)"
         },
         "description": "More settings are available under Configure afterwards."
       }
@@ -47,12 +49,14 @@
         "data": {
           "cover": "Roof window (cover)",
           "position_sensor": "Position sensor (channel 3)",
-          "humidity_sensor": "Bathroom hygrometer",
+          "humidity_sensor": "Humidity at the shower (detects showering)",
           "weather": "Weather",
           "lights": "Lights",
           "require_light": "Only open automatically when a light is on",
           "fan": "Fan",
-          "temperature_sensor": "Bathroom temperature (for absolute humidity)"
+          "temperature_sensor": "Temperature at the shower (optional)",
+          "room_humidity_sensor": "Room humidity (decides when to close, optional)",
+          "room_temperature_sensor": "Room temperature (optional)"
         }
       },
       "venting": {

@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.3.0"
+VERSION: Final = "1.4.0"
 
 SIGNAL_UPDATE: Final = "dachluke_update_{}"
 
@@ -19,6 +19,8 @@ CONF_COVER: Final = "cover"
 CONF_POSITION_SENSOR: Final = "position_sensor"
 CONF_HUMIDITY_SENSOR: Final = "humidity_sensor"
 CONF_TEMP_SENSOR: Final = "temperature_sensor"
+CONF_ROOM_HUMIDITY: Final = "room_humidity_sensor"
+CONF_ROOM_TEMP: Final = "room_temperature_sensor"
 CONF_WEATHER: Final = "weather"
 CONF_LIGHTS: Final = "lights"
 CONF_REQUIRE_LIGHT: Final = "require_light"
@@ -117,6 +119,8 @@ DEFAULTS: Final[dict] = {
     CONF_REQUIRE_LIGHT: False,
     CONF_FAN: None,
     CONF_TEMP_SENSOR: None,
+    CONF_ROOM_HUMIDITY: None,
+    CONF_ROOM_TEMP: None,
     CONF_WEATHER: None,
     CONF_RISE_THRESHOLD: 8.0,
     CONF_SHOWER_DETECT: 4.0,

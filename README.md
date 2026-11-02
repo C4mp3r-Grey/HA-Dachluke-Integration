@@ -24,6 +24,13 @@ Ohne HACS kopierst du den Ordner `custom_components/dachluke` nach `/config/cust
 
 Homematic(IP) Local → HmIP-BROLL öffnen → **Unignore Parameters** → Kanal 3 → `LEVEL` → Neustart. Die Integration erwartet die Position in **0–100 %**.
 
+### Zwei Feuchtesensoren (empfohlen)
+
+- **Feuchte an der Dusche:** ein schnell reagierender Sensor nahe der Dusche. Er erkennt Beginn und Ende des Duschens und darf dabei auch auf 100 % gehen.
+- **Raumfeuchte (optional):** zum Beispiel das Wandthermostat, abseits der Dusche. Ist er eingetragen, entscheiden Raumfeuchte und Raumtemperatur über das Schließen, die Stagnation und das zweite Nachlüften. Ohne eigenen Raumtemperatur-Sensor wird die Ist-Temperatur des Thermostats verwendet. Statt eines Feuchtesensors kann auch direkt das Thermostat (`climate`) gewählt werden. Dann liest die Integration dessen Attribut `current_humidity`.
+
+Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie vergleichen kannst.
+
 ### Umstieg vom Blueprint
 
 1. Integration einrichten. Unter Konfigurieren dieselben Entitäten und Werte wie im Blueprint eintragen.

@@ -26,7 +26,7 @@ const COUNTER_TEXT = [
 ];
 const RANGES = [[6, "6 h"], [24, "24 h"], [72, "3 Tage"], [168, "7 Tage"]];
 const COLORS = {
-  hum: "#2a78d6", rise: "#eb6834", pos: "#1baf7a", light: "#eda100",
+  hum: "#2a78d6", room: "#00838f", rise: "#eb6834", pos: "#1baf7a", light: "#eda100",
   fan: "#6250d6", auto: "#1baf7a", manual: "#e87ba4", pause: "#8a959b", warn: "#d03b3b",
 };
 
@@ -128,7 +128,7 @@ class DachlukePanel extends HTMLElement {
         <section class="card">
           <div class="row" style="justify-content:space-between"><h2>Verlauf</h2><div class="row" id="ranges"></div></div>
           <div class="key">
-            <span><i style="background:${COLORS.hum}"></i>Feuchte</span><span><i style="background:${COLORS.rise}"></i>Anstieg 5 min</span>
+            <span><i style="background:${COLORS.hum}"></i>Feuchte Dusche</span><span><i style="background:${COLORS.room}"></i>Feuchte Raum</span><span><i style="background:${COLORS.rise}"></i>Anstieg 5 min</span>
             <span><i style="background:${COLORS.pos}"></i>Luke</span><span><i style="background:${COLORS.light}"></i>Licht</span>
             <span><i style="background:${COLORS.fan}"></i>Lüfter</span><span><i style="background:${COLORS.manual}"></i>Lüftung von Hand</span>
             <span><i style="background:${COLORS.pause}"></i>Pause/aus</span><span><i style="background:${COLORS.warn}"></i>Dusche ohne Öffnen</span>
@@ -187,6 +187,8 @@ class DachlukePanel extends HTMLElement {
     const e = c.entities, s = this._st(e.status);
     const status = s ? s.state : c.status;
     const blockers = (s && s.attributes.hindernisse_oeffnen) || c.blockers || [];
+    const roomSt = c.sources.room_humidity ? this._st(c.sources.room_humidity) : null;
+    const roomVal = roomSt ? (roomSt.entity_id.startsWith("climate.") ? roomSt.attributes.current_humidity : roomSt.state) : null;
     const hum = this._st(c.sources.humidity), pos = this._st(c.sources.position);
     const rise = this._st(e.humidity_rise), end = this._st(e.vent_end), ah = this._st(e.absolute_humidity);
     const ended = s && s.attributes.duschende;
@@ -206,7 +208,8 @@ class DachlukePanel extends HTMLElement {
         </div>
       </div>
       <div class="row muted">
-        <span>Feuchte <b>${hum ? hum.state : "–"} %</b></span>
+        <span>Dusche <b>${hum ? hum.state : "–"} %</b></span>
+        ${roomSt ? `<span>Raum <b>${roomVal ?? "–"} %</b></span>` : ""}
         ${ah && !["unknown", "unavailable"].includes(ah.state) ? `<span>absolut <b>${ah.state} g/m³</b></span>` : ""}
         <span>Anstieg <b>${rise ? rise.state : "–"} %/5 min</b> (öffnet ab ${c.settings.rise_threshold})</span>
         <span>Luke <b>${pos ? pos.state : "–"} %</b></span>
@@ -227,7 +230,7 @@ class DachlukePanel extends HTMLElement {
     const c = this._cur; if (!c) return;
     this.shadowRoot.getElementById("tiles").innerHTML = COUNTER_TEXT.map(([k, label]) => {
       const st = this._st(c.entities[`count_${k}`]);
-      const v = st ? st.state : c.counters[k];
+      const v = st ? st.state : (c.counters[k] ?? 0);
       return `<div class="tile"><b>${v}</b><span>${label}</span></div>`;
     }).join("") + `<div class="tile"><b>${c.last_duration != null ? Math.round(c.last_duration) + " min" : "–"}</b><span>Dauer letzte Lüftung</span></div>` +
       `<div class="tile"><b>${c.last_shower_minutes != null ? "≈ " + Math.round(c.last_shower_minutes) + " min" : "–"}</b><span>Geschätzte Dauer letztes Duschen</span></div>`;
@@ -317,7 +320,8 @@ class DachlukePanel extends HTMLElement {
   async _fetchHistory() {
     const c = this._cur; if (!c) return;
     const s = c.sources, e = c.entities;
-    const ids = [s.humidity, s.position, e.humidity_rise, e.status, s.fan, ...(s.lights || [])].filter(Boolean);
+    const roomId = s.room_humidity && s.room_humidity.startsWith("sensor.") ? s.room_humidity : null;
+    const ids = [s.humidity, roomId, s.position, e.humidity_rise, e.status, s.fan, ...(s.lights || [])].filter(Boolean);
     const end = new Date(), start = new Date(end - this._hours * 3600000);
     this._range = [start.getTime(), end.getTime()];
     try {
@@ -348,6 +352,7 @@ class DachlukePanel extends HTMLElement {
     const css = n => getComputedStyle(this).getPropertyValue(n).trim() || "#888";
     const ink = css("--secondary-text-color"), grid = css("--divider-color");
     const s = c.sources, e = c.entities;
+    const room = s.room_humidity && s.room_humidity.startsWith("sensor.") ? this._series(s.room_humidity) : [];
     const hum = this._series(s.humidity), rise = this._series(e.humidity_rise), pos = this._series(s.position);
     const status = this._series(e.status), fan = s.fan ? this._series(s.fan) : [];
     const lights = (s.lights || []).map(id => this._series(id));
@@ -371,8 +376,9 @@ class DachlukePanel extends HTMLElement {
       ticks.map(v => { const y = yOf(v, g, h, min, max); return `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="${grid}"/><text x="${L - 4}" y="${y + 3}" text-anchor="end" fill="${ink}" font-size="9">${v}${unit}</text>`; }).join("");
     const thr = c.settings.rise_threshold;
     let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Verlauf Feuchte, Anstieg, Luke und Zustände">`;
-    svg += axis(g1, h1, 40, 100, [40, 60, 80, 100], "%", "Feuchte Bad");
+    svg += axis(g1, h1, 40, 100, [40, 60, 80, 100], "%", "Feuchte");
     svg += `<path d="${stepPath(hum, g1, h1, 40, 100)}" fill="none" stroke="${COLORS.hum}" stroke-width="2"/>`;
+    if (room.length) svg += `<path d="${stepPath(room, g1, h1, 40, 100)}" fill="none" stroke="${COLORS.room}" stroke-width="2" stroke-dasharray="6 3"/>`;
     svg += axis(g2, h2, -10, 20, [-10, 0, 10, 20], "", "Anstieg %/5 min");
     const yt = yOf(thr, g2, h2, -10, 20);
     svg += `<line x1="${L}" x2="${W - R}" y1="${yt}" y2="${yt}" stroke="${COLORS.rise}" stroke-dasharray="4 4" opacity=".7"/><text x="${W - R}" y="${yt - 3}" text-anchor="end" fill="${ink}" font-size="9">öffnet ab ${thr}</text>`;
@@ -409,7 +415,7 @@ class DachlukePanel extends HTMLElement {
       xh.setAttribute("x1", px); xh.setAttribute("x2", px); xh.setAttribute("opacity", .5);
       const st = at(status, t);
       tt.innerHTML = `<b>${new Date(t).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</b>` +
-        [["Feuchte", (at(hum, t) ?? "–") + " %"], ["Anstieg", at(rise, t) ?? "–"], ["Luke", (at(pos, t) ?? "–") + " %"],
+        [["Feuchte Dusche", (at(hum, t) ?? "–") + " %"], ...(room.length ? [["Feuchte Raum", (at(room, t) ?? "–") + " %"]] : []), ["Anstieg", at(rise, t) ?? "–"], ["Luke", (at(pos, t) ?? "–") + " %"],
          ["Licht", lights.some(l => at(l, t) === "on") ? "an" : "aus"], ["Lüfter", fan.length ? at(fan, t) ?? "–" : "–"], ["Status", STATUS_TEXT[st] || st || "–"]]
           .map(([a, b]) => `<div><span>${a}</span><span>${b}</span></div>`).join("");
       tt.hidden = false;
