@@ -52,6 +52,20 @@ def humidity_drop(samples: Sequence[Sample], now: datetime, minutes: float) -> f
     return round(past - samples[-1][1], 2)
 
 
+def rise_start(samples: Sequence[Sample], baseline: float | None, margin: float = 1.0) -> datetime | None:
+    """Zeitpunkt, ab dem die Feuchte über den Ausgangswert gestiegen ist (Beginn des Duschens, geschätzt)."""
+    if not samples:
+        return None
+    if baseline is None:
+        return samples[0][0]
+    start = samples[0][0]
+    for i in range(len(samples) - 1, -1, -1):
+        if samples[i][1] <= baseline + margin:
+            start = samples[i + 1][0] if i + 1 < len(samples) else samples[i][0]
+            break
+    return start
+
+
 def baseline_humidity(samples: Sequence[Sample], now: datetime, lookback_min: float = 20) -> float | None:
     """Feuchte vor dem Duschen: Minimum der letzten `lookback_min` Minuten."""
     start = now - timedelta(minutes=lookback_min)

@@ -229,7 +229,8 @@ class DachlukePanel extends HTMLElement {
       const st = this._st(c.entities[`count_${k}`]);
       const v = st ? st.state : c.counters[k];
       return `<div class="tile"><b>${v}</b><span>${label}</span></div>`;
-    }).join("") + `<div class="tile"><b>${c.last_duration != null ? Math.round(c.last_duration) + " min" : "–"}</b><span>Dauer letzte Lüftung</span></div>`;
+    }).join("") + `<div class="tile"><b>${c.last_duration != null ? Math.round(c.last_duration) + " min" : "–"}</b><span>Dauer letzte Lüftung</span></div>` +
+      `<div class="tile"><b>${c.last_shower_minutes != null ? "≈ " + Math.round(c.last_shower_minutes) + " min" : "–"}</b><span>Geschätzte Dauer letztes Duschen</span></div>`;
     const since = c.counters_since ? new Date(c.counters_since).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) : "";
     this.shadowRoot.getElementById("since").innerHTML = `seit ${since} · <button id="reset">Zurücksetzen</button>`;
     this.shadowRoot.getElementById("reset").onclick = () => this._action("reset");
@@ -290,7 +291,7 @@ class DachlukePanel extends HTMLElement {
       if (!e[`count_${k}`]) return;
       add(14, `- entity: ${e[`count_${k}`]}`); add(16, `name: ${label}`);
     });
-    [e.last_duration, e.reset_counters].filter(Boolean).forEach(id => add(14, `- entity: ${id}`));
+    [e.last_duration, e.last_shower_duration, e.reset_counters].filter(Boolean).forEach(id => add(14, `- entity: ${id}`));
     // Abschnitt 3: Verlauf und Protokoll
     add(6, "- type: grid");
     add(8, "cards:");

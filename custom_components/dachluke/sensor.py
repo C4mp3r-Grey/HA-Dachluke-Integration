@@ -76,6 +76,13 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
         value=lambda c: c.last_duration,
     ),
     DachlukeSensorDescription(
+        key="last_shower_duration",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        suggested_display_precision=0,
+        value=lambda c: c.last_shower_minutes,
+    ),
+    DachlukeSensorDescription(
         key="last_event",
         value=lambda c: c.last_event,
         attrs=lambda c: {"protokoll": list(c.protocol)[-30:]},

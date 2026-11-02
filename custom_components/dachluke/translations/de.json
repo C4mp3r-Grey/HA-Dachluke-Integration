@@ -296,6 +296,9 @@
       },
       "count_close_stall": {
         "name": "Geschlossen: Trocknung stagniert"
+      },
+      "last_shower_duration": {
+        "name": "Dauer letztes Duschen (geschätzt)"
       }
     },
     "binary_sensor": {

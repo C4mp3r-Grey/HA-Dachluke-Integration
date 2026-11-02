@@ -94,6 +94,7 @@ from .const import (
     STATUS_SENSOR,
     STATUS_WEATHER,
     STORAGE_VERSION,
+    VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,7 +107,10 @@ MODE_SECOND = "second"
 PENDING_SECONDS = 120
 FAILURE_DELAY = timedelta(minutes=5)
 SHOWER_CHECK = timedelta(minutes=10)
-PROTOCOL_LEN = 100
+PROTOCOL_LEN = 500
+SETTLE_POLL = timedelta(seconds=5)
+CONFIRM_DELAY = timedelta(seconds=30)
+BUTTON_WINDOW = timedelta(seconds=90)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -138,6 +142,10 @@ class DachlukeController:
         self.baseline_ah: float | None = None
         self.peak: float | None = None
         self.shower_end: datetime | None = None
+        self.shower_start: datetime | None = None
+        self.peak_time: datetime | None = None
+        self.last_shower_minutes: float | None = None
+        self.max_pos: float = 0.0
         self.pause_until: datetime | None = None
         self.second_at: datetime | None = None
         self.saved_setpoint: float | None = None
@@ -156,6 +164,11 @@ class DachlukeController:
         self.shower: dict[str, Any] | None = None
         self._pending: tuple[str, datetime] | None = None
         self._button_seen: dict[str, str] = {}
+        self._button_at: dict[str, tuple[datetime, bool]] = {}
+        self._settled_pos: float | None = None
+        self._move_start: datetime | None = None
+        self._last_pos_change: datetime | None = None
+        self._stored_cfg: dict[str, Any] = {}
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -207,6 +220,11 @@ class DachlukeController:
         self.baseline_ah = data.get("baseline_ah")
         self.peak = data.get("peak")
         self.shower_end = _dt(data.get("shower_end"))
+        self.shower_start = _dt(data.get("shower_start"))
+        self.peak_time = _dt(data.get("peak_time"))
+        self.last_shower_minutes = data.get("last_shower_minutes")
+        self.max_pos = data.get("max_pos", 0.0)
+        self._stored_cfg = data.get("cfg", {})
         self.pause_until = _dt(data.get("pause_until"))
         self.second_at = _dt(data.get("second_at"))
         self.saved_setpoint = data.get("saved_setpoint")
@@ -228,12 +246,18 @@ class DachlukeController:
             "baseline_ah": self.baseline_ah,
             "peak": self.peak,
             "shower_end": _ts(self.shower_end),
+            "shower_start": _ts(self.shower_start),
+            "peak_time": _ts(self.peak_time),
+            "last_shower_minutes": self.last_shower_minutes,
+            "max_pos": self.max_pos,
+            "cfg": {k: v for k, v in self.cfg.items() if k in DEFAULTS},
             "pause_until": _ts(self.pause_until),
             "second_at": _ts(self.second_at),
             "saved_setpoint": self.saved_setpoint,
             "heating_lowered": self.heating_lowered,
             "blocked_override": self.blocked_override,
             "last_duration": self.last_duration,
+            "last_shower_minutes": self.last_shower_minutes,
             "last_open": _ts(self.last_open),
             "counters": self.counters,
             "counters_since": _ts(self.counters_since),
@@ -243,6 +267,22 @@ class DachlukeController:
     async def _resume_after_start(self) -> None:
         """Nach (Neu-)Start Timer wiederherstellen und Widersprüche auflösen."""
         now = dt_util.utcnow()
+        self._settled_pos = self.position()
+        current = {k: v for k, v in self.cfg.items() if k in DEFAULTS}
+        changed = [
+            f"{k}: {self._stored_cfg.get(k)!s} → {v!s}"
+            for k, v in current.items()
+            if self._stored_cfg and self._stored_cfg.get(k) != v
+        ]
+        self._log(
+            "START",
+            f"Version {VERSION}; Anstieg ab {self.cfg[CONF_RISE_THRESHOLD]} %/5 min, Nachlüften {self.cfg[CONF_MAX_OPEN]} min, "
+            f"Licht nötig: {'ja' if self.cfg[CONF_REQUIRE_LIGHT] else 'nein'}, "
+            f"absolute Feuchte: {'ja' if self.cfg.get(CONF_TEMP_SENSOR) else 'nein'}, "
+            f"Stagnation: {'ja' if self.cfg[CONF_STALL_ENABLED] else 'nein'}",
+        )
+        if changed:
+            self._log("EINSTELLUNGEN", "Geändert: " + "; ".join(changed)[:900])
         if self.pause_until:
             if self.pause_until <= now:
                 self.pause_until = None
@@ -329,6 +369,47 @@ class DachlukeController:
     def _set_baselines(self, now: datetime) -> None:
         self.baseline = logic.baseline_humidity(self.samples, now)
         self.baseline_ah = logic.baseline_humidity(self.ah_samples, now) if self.ah_samples else None
+
+    def _fmt(self, value: float | None, unit: str, digits: int = 0) -> str:
+        return "?" if value is None else f"{value:.{digits}f}{unit}"
+
+    def context(self) -> str:
+        """Umgebung für das Protokoll: innen, außen, Licht, Lüfter, Heizung."""
+        parts = [f"innen {self._fmt(self.humidity(), ' %')}"]
+        if self.cfg.get(CONF_TEMP_SENSOR):
+            parts.append(f"{self._fmt(self.temperature(), ' °C', 1)}, {self._fmt(self.abs_humidity(), ' g/m³', 1)}")
+        if self.cfg.get(CONF_WEATHER):
+            parts.append(
+                f"außen {self.weather_state() or '?'} {self._fmt(self._weather_attr('temperature'), ' °C', 1)} "
+                f"{self._fmt(self._weather_attr('humidity'), ' %')} TP {self._fmt(self._weather_attr('dew_point'), ' °C', 1)}"
+            )
+        if self.cfg.get(CONF_LIGHTS):
+            parts.append(f"Licht {'an' if self.lights_on() else 'aus'}")
+        if fan := self._state(self.cfg.get(CONF_FAN)):
+            parts.append(f"Lüfter {fan.state}")
+        if clim := self._state(self.cfg.get(CONF_CLIMATE)):
+            parts.append(f"Heizung {clim.state} {clim.attributes.get('temperature', '?')} °C")
+        return ", ".join(parts)
+
+    def position_reason(self) -> str:
+        """Warum die Zielposition so gewählt wird."""
+        weather = self.weather_state()
+        outdoor = self._weather_attr("temperature")
+        if weather in (self.cfg[CONF_BLOCKED] or []):
+            return f"Wetter gesperrt ({weather})"
+        if self.frost_active():
+            return f"Frost: außen {self._fmt(outdoor, ' °C', 1)} unter {float(self.cfg[CONF_FROST_THRESHOLD]):.0f} °C"
+        if weather in (self.cfg[CONF_RESTRICTED] or []):
+            return f"eingeschränktes Wetter ({weather})"
+        if not self.cfg.get(CONF_WEATHER):
+            return "kein Wetter eingetragen – normale Öffnung"
+        return f"normales Wetter ({weather or '?'})"
+
+    def _manual_source(self, role: str) -> str:
+        hit = self._button_at.get(role)
+        if hit and dt_util.utcnow() - hit[0] <= BUTTON_WINDOW:
+            return "per Fernbedienung" if hit[1] else "per Taste am Gerät"
+        return "ohne erkannten Tastendruck (Dashboard, Alexa, CCU oder Direktverknüpfung)"
 
     def lights_on(self) -> bool:
         return any(
@@ -459,7 +540,7 @@ class DachlukeController:
             if eid == cfg.get(CONF_ALARM):
                 await self._on_alarm()
             if eid == cfg.get(CONF_CONTACT):
-                self._schedule_contact_check()
+                self._schedule_settle()
             if eid == cfg.get(CONF_INDOOR_DEW):
                 await self._evaluate_close()
         except Exception:  # noqa: BLE001 – eine fehlerhafte Aktion darf die Steuerung nicht stoppen
@@ -504,7 +585,9 @@ class DachlukeController:
             if self.baseline is None:
                 self._set_baselines(now)
             self.peak = value
+            self.peak_time = now
             self.shower_end = None
+            self.shower_start = logic.rise_start(self.samples, self.baseline)
             self._set_vent_end(self._vent_end_for(now))
             self._log("UEBERNAHME", f"Dusche während Handöffnung erkannt (+{rise:.1f} %/5 min) – Automatik übernimmt")
         elif self.mode == MODE_AUTO and self.opened_at:
@@ -521,7 +604,12 @@ class DachlukeController:
             return
         self._cancel("fail_position")
         old_pos = self._parse_pos(old)
-        self._schedule_contact_check()
+        if self._move_start is None:
+            self._move_start = now
+        self._last_pos_change = now
+        if self.mode != MODE_IDLE:
+            self.max_pos = max(self.max_pos, new_pos)
+        self._schedule_settle()
         was_open = old_pos is not None and old_pos > 0
         if new_pos > 0 and not was_open:
             await self._on_opened(new_pos)
@@ -564,6 +652,9 @@ class DachlukeController:
         self._set_baselines(now)
         self.peak = None
         self.shower_end = None
+        self.shower_start = None
+        self.peak_time = None
+        self.max_pos = pos
         self.counters["open_manual"] += 1
         self._set_vent_end(now + timedelta(minutes=self._manual_minutes()))
         await self._heating_lower()
@@ -581,12 +672,18 @@ class DachlukeController:
                 alexa=f"Achtung. Dachluke trotz gesperrtem Wetter geöffnet. {dwd} Sie schließt nach {self._manual_minutes():.0f} Minuten.",
             )
         else:
-            self._log("HAND_AUF", f"Von Hand geöffnet auf {pos:.0f} % – schließt nach {self._manual_minutes():.0f} min")
+            self._log(
+                "HAND_AUF",
+                f"Von Hand geöffnet {self._manual_source('open')} auf {pos:.0f} % – schließt nach "
+                f"{self._manual_minutes():.0f} min; {self.context()}",
+            )
             await self._notify("🪟 Dachluke geöffnet", f"Von Hand geöffnet. Schließt nach {self._manual_minutes():.0f} min.",
                                alexa="Dachluke von Hand geöffnet.")
         if (self.rise or 0) >= float(self.cfg[CONF_RISE_THRESHOLD]):
             self.mode = MODE_AUTO
             self.peak = self.humidity()
+            self.peak_time = now
+            self.shower_start = logic.rise_start(self.samples, self.baseline)
             self._set_vent_end(self._vent_end_for(now))
             self._log("UEBERNAHME", "Steigung über Schwelle – Automatik übernimmt die Handöffnung")
 
@@ -596,9 +693,11 @@ class DachlukeController:
         if self.mode == MODE_IDLE and not self.heating_lowered:
             return
         self.counters["close_manual"] += 1
+        source = self._manual_source("close")
+        self._log_balance("von Hand")
         await self._finish_vent("hand")
         self._start_pause()
-        self._log("HAND_ZU", f"Von Hand geschlossen – Pause {self.cfg[CONF_PAUSE_DURATION]} min")
+        self._log("HAND_ZU", f"Von Hand geschlossen {source} – Pause {self.cfg[CONF_PAUSE_DURATION]} min")
         await self._notify("⏸️ Dachluke", f"Von Hand geschlossen, Automatik pausiert für {self.cfg[CONF_PAUSE_DURATION]} min.",
                            alexa="Dachluke geschlossen. Automatik pausiert.")
 
@@ -611,6 +710,8 @@ class DachlukeController:
         etype = new.attributes.get("event_type")
         role, remote = self._buttons()[eid]
         short, long_ = etype in EVENT_SHORT, etype in EVENT_LONG
+        if short:
+            self._button_at[role] = (dt_util.utcnow(), remote)
         if role == "open" and short:
             self._log("TASTE", f"Öffnen kurz{' (Fernbedienung)' if remote else ''}")
             self.pause_until = None
@@ -654,7 +755,7 @@ class DachlukeController:
             if target > 0 and abs(pos - target) >= float(self.cfg[CONF_POS_TOLERANCE]):
                 await self._command_position(target)
                 old_s = old.state if old else "?"
-                self._log("WETTER", f"{old_s} → {new.state}: Position {pos:.0f} % → {target} %")
+                self._log("WETTER", f"{old_s} → {new.state}: Position {pos:.0f} % → {target} % – Öffnungsweite: {self.position_reason()}")
                 await self._notify("🪟 Dachluke angepasst", f"Wetter {old_s} → {new.state}. Position {pos:.0f} % → {target} %.",
                                    critical=True, alexa=f"Neues Wetter. Dachluke auf {target} Prozent angepasst.")
 
@@ -684,7 +785,10 @@ class DachlukeController:
         self.blocked_override = False
         self._set_baselines(now)
         self.peak = self.humidity()
+        self.peak_time = now
         self.shower_end = None
+        self.shower_start = logic.rise_start(self.samples, self.baseline)
+        self.max_pos = 0.0
         self.counters["open_auto"] += 1
         self._set_vent_end(now + timedelta(minutes=self._max_minutes()))
         self._at("min_open", now + timedelta(minutes=float(self.cfg[CONF_MIN_OPEN])), self._min_open_elapsed)
@@ -694,9 +798,13 @@ class DachlukeController:
         await self._heating_lower()
         hum = self.humidity()
         frost = " ❄️ Frost" if self.frost_active() else ""
+        start = self.shower_start
+        since = f", Anstieg seit {dt_util.as_local(start).strftime('%H:%M')}" if start else ""
         self._log(
             "AUTO_AUF",
-            f"Automatisch geöffnet auf {target} % (Auslöser {trigger}, +{self.rise:.1f} %/5 min, rF {hum:.0f} %, Basis {self.baseline or 0:.0f} %){frost}",
+            f"Automatisch geöffnet auf {target} % – Öffnungsweite: {self.position_reason()} "
+            f"(Auslöser {trigger}, +{self.rise or 0:.1f} %/5 min, Basis {self.baseline or 0:.0f} %"
+            f"{f' / {self.baseline_ah:.1f} g/m³' if self.baseline_ah is not None else ''}{since}); {self.context()}",
         )
         await self._notify("🪟 Dachluke geöffnet", f"{target} %, Steigung +{self.rise:.1f} %/5 min, rF {hum:.0f} %.{frost}",
                            alexa="Dachluke geöffnet. Lüftung aktiv.")
@@ -745,6 +853,8 @@ class DachlukeController:
         }.get(kind)
         if counter and (was_mode != MODE_IDLE or kind == "sicherheit"):
             self.counters[counter] += 1
+        if was_mode != MODE_IDLE:
+            self._log_balance(kind)
         await self._finish_vent(kind)
         if kind != "hand":
             self._log("ZU", f"Geschlossen: {text}")
@@ -754,6 +864,28 @@ class DachlukeController:
                                alexa="Lüftung abgeschlossen. Dachluke geschlossen.")
         if kind in ("feuchte", "timer", "stagnation") and was_mode == MODE_AUTO:
             self._schedule_second_vent()
+
+    def _log_balance(self, kind: str) -> None:
+        """Bilanz einer Lüftung für die spätere Auswertung."""
+        if not self.opened_at:
+            return
+        now = dt_util.utcnow()
+        minutes = (now - self.opened_at).total_seconds() / 60
+        after = (now - self.shower_end).total_seconds() / 60 if self.shower_end else None
+        hum, ah = self.humidity(), self.abs_humidity()
+        parts = [
+            f"Grund {kind}",
+            f"offen {minutes:.0f} min" + (f" (davon {after:.0f} nach Duschende)" if after is not None else ""),
+            f"max. {self.max_pos:.0f} %",
+            f"Höchstwert {self._fmt(self.peak, ' %')}",
+            f"Basis {self._fmt(self.baseline, ' %')} → jetzt {self._fmt(hum, ' %')}",
+        ]
+        if ah is not None or self.baseline_ah is not None:
+            parts.append(f"absolut {self._fmt(self.baseline_ah, '', 1)} → {self._fmt(ah, ' g/m³', 1)}")
+        if self.last_shower_minutes is not None and self.shower_end:
+            parts.append(f"Duschen ca. {self.last_shower_minutes:.0f} min")
+        parts.append(self.context())
+        self._log("BILANZ", "; ".join(parts))
 
     async def _finish_vent(self, kind: str) -> None:
         now = dt_util.utcnow()
@@ -765,6 +897,8 @@ class DachlukeController:
         self.blocked_override = False
         self.peak = None
         self.shower_end = None
+        self.shower_start = None
+        self.peak_time = None
         self.baseline_ah = None
         for key in ("vent", "min_open", "stall"):
             self._cancel(key)
@@ -790,17 +924,29 @@ class DachlukeController:
             self.shower_end = None
             self._cancel("stall")
             self.peak = value
+            self.peak_time = now
+            self.shower_start = now
             self._log("DUSCHE", f"Neuer Feuchte-Anstieg (+{rise:.1f} %/5 min) – Lüftung läuft weiter")
         if self.peak is None or value > self.peak:
             self.peak = value
+        if self.shower_end is None and value >= self.peak - 1:
+            self.peak_time = now  # noch am Höchstwert
         if self.shower_end is None:
             if value <= self.peak - drop:
                 self.shower_end = now
                 self._set_vent_end(self._vent_end_for(now))
                 self._schedule_stall_check(now)
+                duration = ""
+                if self.shower_start and self.peak_time and self.peak_time >= self.shower_start:
+                    self.last_shower_minutes = round((self.peak_time - self.shower_start).total_seconds() / 60, 1)
+                    duration = (
+                        f"; Duschen geschätzt {self.last_shower_minutes:.0f} min "
+                        f"({dt_util.as_local(self.shower_start).strftime('%H:%M')}–{dt_util.as_local(self.peak_time).strftime('%H:%M')})"
+                    )
                 self._log(
                     "DUSCHE_ENDE",
-                    f"Feuchte fällt vom Höchstwert {self.peak:.0f} % auf {value:.0f} % – Nachlüften höchstens {self._max_minutes():.0f} min",
+                    f"Feuchte fällt vom Höchstwert {self.peak:.0f} % auf {value:.0f} % – Nachlüften höchstens "
+                    f"{self._max_minutes():.0f} min{duration}",
                 )
             else:
                 new_end = self._vent_end_for(now)
@@ -887,7 +1033,7 @@ class DachlukeController:
             await self._command_position(target)
             if self.cfg[CONF_SECOND_HEATING]:
                 await self._heating_lower()
-            self._log("NACHLUEFTEN", f"Zweites Nachlüften bei {hum:.0f} % für {self.cfg[CONF_SECOND_DURATION]} min")
+            self._log("NACHLUEFTEN", f"Zweites Nachlüften bei {hum:.0f} % für {self.cfg[CONF_SECOND_DURATION]} min auf {target} % – Öffnungsweite: {self.position_reason()}; {self.context()}")
             await self._notify("🔄 Dachluke", f"Zweites Nachlüften, Restfeuchte {hum:.0f} %.",
                                alexa=f"Zweites Nachlüften. Restfeuchte {hum:.0f} Prozent.")
         else:
@@ -920,22 +1066,51 @@ class DachlukeController:
         await self._notify("⚠️ Dachluke", "Positionssensor nicht verfügbar. Automatisches Öffnen gesperrt.", critical=True,
                            alexa="Achtung. Dachluke Positionssensor ausgefallen.")
 
-    def _schedule_contact_check(self) -> None:
-        if not self.cfg.get(CONF_CONTACT):
-            return
-        when = dt_util.utcnow() + timedelta(seconds=float(self.cfg[CONF_CONTACT_GRACE]))
-        self._at("contact", when, self._contact_check)
+    def _schedule_settle(self) -> None:
+        """Erst auswerten, wenn die Luke steht: Position eine Weile unverändert und Cover fährt nicht."""
+        wait = max(float(self.cfg[CONF_CONTACT_GRACE]), 10.0)
+        self._cancel("contact_confirm")
+        self._at("settle", dt_util.utcnow() + timedelta(seconds=wait), self._position_settled)
 
-    async def _contact_check(self, _now: datetime) -> None:
+    def _moving(self) -> bool:
+        cover = self._state(self.cfg[CONF_COVER])
+        return bool(cover and cover.state in ("opening", "closing"))
+
+    async def _position_settled(self, _now: datetime) -> None:
+        now = dt_util.utcnow()
+        if self._moving():
+            self._at("settle", now + SETTLE_POLL, self._position_settled)
+            return
+        pos = self.position()
+        if pos is not None and pos != self._settled_pos:
+            travel = ""
+            if self._move_start and self._last_pos_change and self._last_pos_change > self._move_start:
+                travel = f" (Positionsmeldungen über {(self._last_pos_change - self._move_start).total_seconds():.0f} s)"
+            contact = self._state(self.cfg.get(CONF_CONTACT))
+            ctext = f", Kontakt {contact.state}" if contact else ""
+            self._log("ENDLAGE", f"Luke steht bei {pos:.0f} %{travel}{ctext}")
+            self._settled_pos = pos
+        self._move_start = None
+        if self._contact_mismatch():
+            # Kontakte melden teils verzögert: erst nach einer Bestätigung warnen
+            self._at("contact_confirm", now + CONFIRM_DELAY, self._contact_check)
+
+    def _contact_mismatch(self) -> bool:
         contact = self._state(self.cfg.get(CONF_CONTACT))
         pos = self.position()
         if contact is None or contact.state in BAD_STATES or pos is None:
+            return False
+        return (pos > 0) != (contact.state == STATE_ON)
+
+    async def _contact_check(self, _now: datetime) -> None:
+        if self._moving() or not self._contact_mismatch():
             return
-        if (pos > 0) != (contact.state == STATE_ON):
-            self._log("WIDERSPRUCH", f"Position {pos:.0f} % aber Kontakt {contact.state}")
-            await self._notify("⚠️ Dachluke Sensor-Widerspruch",
-                               f"Positionssensor {pos:.0f} %, Fensterkontakt {contact.state}. Bitte prüfen.",
-                               critical=True, alexa="Achtung. Dachluke Sensorfehler.")
+        contact = self._state(self.cfg.get(CONF_CONTACT))
+        pos = self.position() or 0
+        self._log("WIDERSPRUCH", f"Position {pos:.0f} % aber Kontakt {contact.state} (über {CONFIRM_DELAY.seconds} s nach Stillstand)")
+        await self._notify("⚠️ Dachluke Sensor-Widerspruch",
+                           f"Positionssensor {pos:.0f} %, Fensterkontakt {contact.state}. Bitte prüfen.",
+                           critical=True, alexa="Achtung. Dachluke Sensorfehler.")
 
     # ════════════════════════════════════════════════════════════════════
     # Aktionen

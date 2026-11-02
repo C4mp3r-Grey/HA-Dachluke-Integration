@@ -260,6 +260,9 @@
       },
       "count_close_stall": {
         "name": "Closed: drying stalled"
+      },
+      "last_shower_duration": {
+        "name": "Last shower duration (estimated)"
       }
     },
     "binary_sensor": {

@@ -77,7 +77,21 @@ Auf der Seite **Dachluke** unter *Protokoll* → **Als CSV kopieren**. Jede Zeil
 2026-11-08T07:14:02+01:00;DUSCHE_VERPASST;"Dusche ohne Öffnen: Steigung max. 6.3 < Schwelle 8; Licht war aus"
 ```
 
-Das Protokoll speichert die letzten 100 Einträge. Längere Zeiträume liefert der Verlauf von `sensor.…_letztes_ereignis` (Verlauf → Download).
+Wichtige Ereignisse für die Auswertung:
+
+| Ereignis | Inhalt |
+|---|---|
+| `START`, `EINSTELLUNGEN` | Version und wichtige Einstellungen bei jedem Start, geänderte Werte mit alt → neu |
+| `AUTO_AUF` | Öffnungsweite **mit Grund** (normal, eingeschränktes Wetter, Frost, gesperrt), Auslöser, Ausgangsfeuchte, Beginn des Anstiegs, Umgebung |
+| `HAND_AUF`, `HAND_ZU` | ob per Taste, Fernbedienung oder ohne erkannten Tastendruck |
+| `ENDLAGE` | Position nach Stillstand der Luke und Zustand des Fensterkontakts |
+| `DUSCHE_ENDE` | Höchstwert und **geschätzte Duschdauer** |
+| `BILANZ` | je Lüftung: Grund, Dauer (davon nach Duschende), max. Öffnung, Höchstwert, Feuchte vorher/nachher, Umgebung |
+| `WIDERSPRUCH` | Kontakt und Position passen nicht zusammen, erst gemeldet, wenn die Luke steht und es 30 s später noch gilt |
+
+„Umgebung“ heißt: Feuchte innen (absolut, wenn Temperatur eingetragen), Wetter, Außentemperatur, Außenfeuchte, Taupunkt, Licht, Lüfter, Heizungsmodus und Sollwert.
+
+Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert der Verlauf von `sensor.…_letztes_ereignis` (Verlauf → Download).
 
 ## Grenzen
 
