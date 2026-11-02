@@ -1769,6 +1769,8 @@ class DachlukeController:
                 "close_abs": self.cfg[CONF_CLOSE_ABS],
                 "max_open": self.cfg[CONF_MAX_OPEN],
                 "manual_duration": self.cfg[CONF_MANUAL_DURATION],
+                "heating_enabled": self.cfg[CONF_HEATING_ENABLED],
+                "heating_vent_temp": self.cfg[CONF_HEATING_VENT_TEMP],
                 "stall_enabled": self.cfg[CONF_STALL_ENABLED],
                 "stall_minutes": self.cfg[CONF_STALL_MINUTES],
                 "require_light": self.cfg[CONF_REQUIRE_LIGHT],

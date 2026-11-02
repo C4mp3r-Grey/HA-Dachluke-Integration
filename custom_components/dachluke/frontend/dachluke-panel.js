@@ -387,6 +387,8 @@ class DachlukePanel extends HTMLElement {
       ...(roomExpr ? [chip(`Raum {{ ${roomExpr} | int(0) }} %`, "mdi:home-thermometer", "teal", s.room_humidity)] : []),
       ...(e.absolute_humidity ? [chip(`{{ states('${e.absolute_humidity}') | round(1) }} g/m³`, "mdi:water", "cyan", e.absolute_humidity)] : []),
       chip(`außen {{ state_attr('${st}', 'aussenfeuchte_absolut') | round(1) if state_attr('${st}', 'aussenfeuchte_absolut') is number else '–' }} g/m³`, "mdi:weather-partly-rainy", "grey", s.weather || null),
+      ...(s.climate ? [chip(`{{ state_attr('${s.climate}', 'current_temperature') }} → {{ state_attr('${s.climate}', 'temperature') }} °C`, "mdi:radiator",
+        `{{ 'deep-orange' if state_attr('${s.climate}', 'hvac_action') == 'heating' else 'grey' }}`, s.climate)] : []),
       ...(s.fan ? [chip(`Lüfter`, "mdi:fan", `{{ 'green' if is_state('${s.fan}', 'on') else 'grey' }}`, s.fan)] : []),
       ...((s.lights || []).slice(0, 1).map(l => chip(`Licht`, "mdi:lightbulb", `{{ 'amber' if is_state('${l}', 'on') else 'grey' }}`, l))),
     ] };
@@ -437,15 +439,16 @@ class DachlukePanel extends HTMLElement {
 
     const RANGES_DASH = [["6h", "6 h", 6, 12], ["24h", "24 h", 24, 6], ["3d", "3 Tage", 72, 2], ["7d", "7 Tage", 168, 1]];
     const humidityGraph = (hours, pph) => ({
-      type: "custom:mini-graph-card", name: "Feuchte Dusche", icon: "mdi:water-percent",
+      type: "custom:mini-graph-card", name: s.room_humidity ? "Feuchte Raum" : "Feuchte Dusche", icon: "mdi:water-percent",
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
       // Feuchte mit Abstand zur Achse; Luke genau 0–100 %
       lower_bound: 30, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
-      // Großer Wert = erste Kurve (Dusche); Name nennt den Sensor, alle Werte zusätzlich an der Legende
+      // Großer Wert = erste Kurve; Name nennt den Sensor, alle Werte zusätzlich an der Legende
       show: { state: true, labels: true, labels_secondary: true, legend: true, fill: false, points: false },
+      // Erste Kurve liefert den großen Wert: Raum, falls vorhanden
       entities: [
-        { entity: s.humidity, name: "Dusche", color: "#2a78d6", show_legend_state: true },
         ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity", unit: "%" } : {}), name: "Raum", color: "#00838f", show_legend_state: true }] : []),
+        { entity: s.humidity, name: "Dusche", color: "#2a78d6", show_legend_state: true },
         { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false, show_legend_state: true },
       ],
     });
@@ -463,6 +466,38 @@ class DachlukePanel extends HTMLElement {
     } : null;
     const statesGraph = (hours) => ({ type: "history-graph", title: "Zustände", hours_to_show: hours,
       entities: [e.open, ...(s.lights || []), s.fan, st].filter(Boolean).map(entity => ({ entity })) });
+    const cl = s.climate;
+    const tempGraph = (hours, pph) => cl ? {
+      type: "custom:mini-graph-card", name: "Temperatur Bad", icon: "mdi:thermometer", unit: "°C",
+      hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
+      lower_bound: "~10", upper_bound: "~26", lower_bound_secondary: 0, upper_bound_secondary: 100,
+      show: { state: true, labels: true, labels_secondary: true, legend: true, fill: false, points: false },
+      entities: [
+        { entity: cl, attribute: "current_temperature", name: "Ist", color: "#eb6834", unit: "°C", show_legend_state: true },
+        { entity: cl, attribute: "temperature", name: "Soll", color: "#e87ba4", unit: "°C", smoothing: false, show_legend_state: true },
+        { entity: st, attribute: "aussentemperatur", name: "Außen", color: "#8a959b", unit: "°C", show_legend_state: true },
+        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, show_line: false, aggregate_func: "max", smoothing: false },
+      ],
+    } : null;
+    const heating = !cl ? [] : [
+      sep("Heizung", "mdi:radiator"),
+      { type: "thermostat", entity: cl, grid_options: { columns: "full" } },
+      {
+        type: "custom:mushroom-template-card", entity: cl, grid_options: { columns: "full" },
+        primary: `{{ state_attr('${cl}', 'current_temperature') }} °C → Soll {{ state_attr('${cl}', 'temperature') }} °C`,
+        secondary: [
+          `{% set a = state_attr('${cl}', 'hvac_action') %}`,
+          `{{ 'Heizt' if a == 'heating' else 'Heizt nicht' if a in ['idle', 'off'] else (states('${cl}') | capitalize) }}`,
+          c.settings.heating_enabled
+            ? ` · {{ 'beim Lüften auf ${c.settings.heating_vent_temp} °C abgesenkt, danach zurück auf ' ~ state_attr('${st}', 'heizung_gemerkter_sollwert') ~ ' °C' if state_attr('${st}', 'heizung_abgesenkt') else 'senkt beim Lüften auf ${c.settings.heating_vent_temp} °C' }}`
+            : ` · Heizungssteuerung der Dachluke aus`,
+        ].join(""),
+        icon: "mdi:radiator",
+        icon_color: `{{ 'deep-orange' if state_attr('${cl}', 'hvac_action') == 'heating' else 'grey' }}`,
+        multiline_secondary: true,
+        tap_action: { action: "more-info" },
+      },
+    ];
     const sel = e.chart_range;
     const rangeChips = sel ? [{
       type: "custom:mushroom-chips-card", alignment: "center", grid_options: { columns: "full" },
@@ -499,12 +534,14 @@ class DachlukePanel extends HTMLElement {
             { ...toggle(e.automatic, "Automatik", "mdi:robot"), grid_options: { columns: 6 } },
             { ...toggle(e.pause, "Pause", "mdi:pause"), grid_options: { columns: 6 } },
             ...controls,
+            ...heating,
           ] },
           { type: "grid", cards: [
             sep("Verlauf", "mdi:chart-line"),
             ...rangeChips,
             ...perRange(humidityGraph),
             ...perRange(absGraph),
+            ...perRange(tempGraph),
             ...perRange(statesGraph),
           ] },
           { type: "grid", cards: [
