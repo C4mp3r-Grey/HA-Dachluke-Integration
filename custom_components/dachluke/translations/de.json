@@ -333,6 +333,12 @@
     "button": {
       "reset_counters": {
         "name": "Analyse zurücksetzen"
+      },
+      "vent_now": {
+        "name": "Jetzt lüften"
+      },
+      "stop_venting": {
+        "name": "Lüftung beenden"
       }
     }
   }

@@ -294,6 +294,12 @@
     "button": {
       "reset_counters": {
         "name": "Reset analysis"
+      },
+      "vent_now": {
+        "name": "Vent now"
+      },
+      "stop_venting": {
+        "name": "Stop venting"
       }
     }
   }

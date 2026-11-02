@@ -392,6 +392,20 @@ class DachlukePanel extends HTMLElement {
     ] };
 
     const toggle = (entity, name, icon) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity, name, icon });
+    const press = (entity, name, icon) => ({
+      type: "custom:bubble-card", card_type: "button", button_type: "name", entity, name, icon,
+      tap_action: { action: "perform-action", perform_action: "button.press", target: { entity_id: entity } },
+      grid_options: { columns: 6 },
+    });
+    const controls = [
+      sep("Steuerung", "mdi:gesture-tap"),
+      ...(e.vent_now ? [press(e.vent_now, "Jetzt lüften", "mdi:window-open-variant")] : []),
+      ...(e.stop_venting ? [press(e.stop_venting, "Lüftung beenden", "mdi:window-closed-variant")] : []),
+      { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: s.cover, name: "Öffnung", icon: "mdi:window-shutter-open", grid_options: { columns: "full" } },
+      { type: "custom:bubble-card", card_type: "cover", entity: s.cover, name: "Dachluke", grid_options: { columns: "full" } },
+      ...(s.fan ? [{ ...toggle(s.fan, "Lüfter", "mdi:fan"), grid_options: { columns: 6 } }] : []),
+      ...((s.lights || []).slice(0, 1).map(l => ({ ...toggle(l, "Licht", "mdi:lightbulb"), grid_options: { columns: 6 } }))),
+    ];
 
     const humidityGraph = {
       type: "custom:mini-graph-card", name: "Feuchte", icon: "mdi:water-percent",
@@ -437,6 +451,7 @@ class DachlukePanel extends HTMLElement {
             { ...chips, grid_options: { columns: "full" } },
             { ...toggle(e.automatic, "Automatik", "mdi:robot"), grid_options: { columns: 6 } },
             { ...toggle(e.pause, "Pause", "mdi:pause"), grid_options: { columns: 6 } },
+            ...controls,
           ] },
           { type: "grid", cards: [
             sep("Verlauf", "mdi:chart-line"),

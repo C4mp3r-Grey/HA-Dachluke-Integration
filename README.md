@@ -75,7 +75,8 @@ Erkannt werden die Ereignistypen `press_short` und `press_long_release` bzw. `pr
 - `sensor.…_status`: Bereit, Lüftet (Automatik/von Hand), Nachlüften, Pause, Deaktiviert, Gesperrt (Alarm/Wetter), Sensor fehlt. Das Attribut `hindernisse_oeffnen` nennt, warum gerade nicht geöffnet würde.
 - `sensor.…_feuchte_anstieg_5_min`, `…_ausgangsfeuchte`, `…_luftung_endet`, `…_dauer_letzte_luftung`, `…_letztes_ereignis`
 - Zähler (Diagnose): automatisch und von Hand geöffnet; geschlossen wegen Feuchte, Zeit, stagnierender Trocknung, von Hand, Wetter/Alarm; Duschen erkannt; Duschen ohne Öffnen; Sensorausfälle
-- `binary_sensor.…_luke_offen`, `switch.…_automatik`, `switch.…_pause`, `button.…_analyse_zurucksetzen`
+- `binary_sensor.…_luke_offen`, `switch.…_automatik`, `switch.…_pause`
+- Tasten: **Jetzt lüften** (öffnet auf die passende Weite, wetter- und alarmbewusst, gilt als Handöffnung), **Lüftung beenden** (schließt mit Pause), **Analyse zurücksetzen**
 
 Die genauen Entity-IDs hängen von der Sprache bei der Einrichtung ab. Die Seitenleisten-Seite zeigt sie und baut daraus die Dashboard-YAML.
 

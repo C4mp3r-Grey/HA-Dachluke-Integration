@@ -182,7 +182,7 @@ class DachlukeController:
         self.shower: dict[str, Any] | None = None
         self._pending: tuple[str, datetime] | None = None
         self._button_seen: dict[str, str] = {}
-        self._button_at: dict[str, tuple[datetime, bool]] = {}
+        self._button_at: dict[str, tuple[datetime, bool | str]] = {}
         self._settled_pos: float | None = None
         self._move_start: datetime | None = None
         self._last_pos_change: datetime | None = None
@@ -621,6 +621,8 @@ class DachlukeController:
     def _manual_source(self, role: str) -> str:
         hit = self._button_at.get(role)
         if hit and dt_util.utcnow() - hit[0] <= BUTTON_WINDOW:
+            if isinstance(hit[1], str):
+                return hit[1]
             return "per Fernbedienung" if hit[1] else "per Taste am Gerät"
         return "ohne erkannten Tastendruck (Dashboard, Alexa, CCU oder Direktverknüpfung)"
 
@@ -1521,6 +1523,31 @@ class DachlukeController:
             self._cancel("pause")
             self._log("PAUSE_ENDE", "Pause beendet (Schalter)")
         self._publish()
+
+    async def async_vent_now(self) -> None:
+        """Taste 'Jetzt lüften': öffnet auf die passende Weite, gilt als Handöffnung."""
+        if self.alarm_active():
+            self._log("ALARM", "‚Jetzt lüften‘ abgelehnt – Alarm aktiv")
+            await self._notify("🚨 Dachluke", "Lüften abgelehnt, Alarm ist aktiv.", critical=True)
+            return
+        if self.is_open():
+            if self.mode == MODE_MANUAL:
+                self._set_vent_end(dt_util.utcnow() + timedelta(minutes=self._manual_minutes()))
+                self._log("HAND_AUF", f"‚Jetzt lüften‘ erneut gedrückt – läuft weitere {self._manual_minutes():.0f} min")
+                self._publish()
+            return
+        target = self.target()
+        if target <= 0:  # Wetter gesperrt: nur minimal
+            target = int(self.cfg[CONF_POS_RESTRICTED])
+        self._button_at["open"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Jetzt lüften‘")
+        await self._call("cover", "set_cover_position", {"entity_id": self.cfg[CONF_COVER], "position": target})
+
+    async def async_stop_venting(self) -> None:
+        """Taste 'Lüftung beenden': schließt wie von Hand (mit Pause)."""
+        if self.is_open() is False:
+            return
+        self._button_at["close"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Lüftung beenden‘")
+        await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
 
     async def async_reset_counters(self) -> None:
         self.counters = {k: 0 for k in COUNTERS}
