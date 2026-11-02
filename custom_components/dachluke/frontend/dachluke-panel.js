@@ -380,7 +380,7 @@ class DachlukePanel extends HTMLElement {
       tap_action: { action: "more-info" },
     };
 
-    const chips = { type: "custom:mushroom-chips-card", chips: [
+    const chips = { type: "custom:mushroom-chips-card", alignment: "center", chips: [
       chip(`{{ states('${s.position}') | int(0) }} %`, `{{ 'mdi:window-open-variant' if states('${s.position}') | int(0) > 0 else 'mdi:window-closed-variant' }}`,
         `{{ 'blue' if states('${s.position}') | int(0) > 0 else 'grey' }}`, s.position),
       chip(`Dusche {{ states('${s.humidity}') | int(0) }} %`, "mdi:shower-head", `{{ 'blue' if states('${s.humidity}') | float(0) >= 85 else 'grey' }}`, s.humidity),
@@ -401,7 +401,7 @@ class DachlukePanel extends HTMLElement {
       entities: [
         { entity: s.humidity, name: "Dusche", color: "#2a78d6" },
         ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity" } : {}), name: "Raum", color: "#00838f" }] : []),
-        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max" },
+        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false },
       ],
     };
 
@@ -435,8 +435,8 @@ class DachlukePanel extends HTMLElement {
             sep("Jetzt", "mdi:window-open-variant"),
             { ...status, grid_options: { columns: "full" } },
             { ...chips, grid_options: { columns: "full" } },
-            toggle(e.automatic, "Automatik", "mdi:robot"),
-            toggle(e.pause, "Pause", "mdi:pause"),
+            { ...toggle(e.automatic, "Automatik", "mdi:robot"), grid_options: { columns: 6 } },
+            { ...toggle(e.pause, "Pause", "mdi:pause"), grid_options: { columns: 6 } },
           ] },
           { type: "grid", cards: [
             sep("Verlauf", "mdi:chart-line"),
