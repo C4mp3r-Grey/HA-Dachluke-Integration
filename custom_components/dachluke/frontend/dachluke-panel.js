@@ -392,15 +392,23 @@ class DachlukePanel extends HTMLElement {
     ] };
 
     const toggle = (entity, name, icon) => ({ type: "custom:bubble-card", card_type: "button", button_type: "switch", entity, name, icon });
-    const press = (entity, name, icon) => ({
+    const press = (entity, name, icon, visibility) => ({
       type: "custom:bubble-card", card_type: "button", button_type: "name", entity, name, icon,
       tap_action: { action: "perform-action", perform_action: "button.press", target: { entity_id: entity } },
       grid_options: { columns: 6 },
+      ...(visibility ? { visibility } : {}),
     });
+    // Tasten nur zeigen, wenn sie gerade etwas bewirken
+    const isState = (entity, state) => ({ condition: "state", entity, state });
+    const notState = (entity, state_not) => ({ condition: "state", entity, state_not });
+    const whenClosed = e.open ? [isState(e.open, "off"), notState(st, "gesperrt_alarm")] : null;
+    const whenManual = [isState(st, "lueftet_manuell")];
+    const whenOpen = e.open ? [isState(e.open, "on")] : null;
     const controls = [
       sep("Steuerung", "mdi:gesture-tap"),
-      ...(e.vent_now ? [press(e.vent_now, "Jetzt lüften", "mdi:window-open-variant")] : []),
-      ...(e.stop_venting ? [press(e.stop_venting, "Lüftung beenden", "mdi:window-closed-variant")] : []),
+      ...(e.vent_now ? [press(e.vent_now, "Jetzt lüften", "mdi:window-open-variant", whenClosed)] : []),
+      ...(e.vent_now ? [press(e.vent_now, `${c.settings.manual_duration ?? 15} min verlängern`, "mdi:timer-plus-outline", whenManual)] : []),
+      ...(e.stop_venting ? [press(e.stop_venting, "Lüftung beenden", "mdi:window-closed-variant", whenOpen)] : []),
       { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: s.cover, name: "Öffnung", icon: "mdi:window-shutter-open", grid_options: { columns: "full" } },
       { type: "custom:bubble-card", card_type: "cover", entity: s.cover, name: "Dachluke", grid_options: { columns: "full" } },
       ...(s.fan ? [{ ...toggle(s.fan, "Lüfter", "mdi:fan"), grid_options: { columns: 6 } }] : []),
@@ -411,8 +419,8 @@ class DachlukePanel extends HTMLElement {
     const humidityGraph = (hours, pph) => ({
       type: "custom:mini-graph-card", name: "Feuchte", icon: "mdi:water-percent",
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
-      // Abstand zu den Achsen: 0 % Luke liegt nicht auf der Grundlinie, Feuchte nicht am Rand
-      lower_bound: 30, upper_bound: 100, lower_bound_secondary: -10, upper_bound_secondary: 110,
+      // Feuchte mit Abstand zur Achse; Luke genau 0–100 %
+      lower_bound: 30, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
       show: { labels: true, labels_secondary: true, legend: true, fill: false, points: false },
       entities: [
         { entity: s.humidity, name: "Dusche", color: "#2a78d6" },

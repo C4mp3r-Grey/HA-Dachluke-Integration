@@ -1656,6 +1656,7 @@ class DachlukeController:
                 "close_offset": self.cfg[CONF_CLOSE_OFFSET],
                 "close_abs": self.cfg[CONF_CLOSE_ABS],
                 "max_open": self.cfg[CONF_MAX_OPEN],
+                "manual_duration": self.cfg[CONF_MANUAL_DURATION],
                 "stall_enabled": self.cfg[CONF_STALL_ENABLED],
                 "stall_minutes": self.cfg[CONF_STALL_MINUTES],
                 "require_light": self.cfg[CONF_REQUIRE_LIGHT],
