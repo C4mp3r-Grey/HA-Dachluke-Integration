@@ -301,6 +301,17 @@
       "stop_venting": {
         "name": "Stop venting"
       }
+    },
+    "select": {
+      "chart_range": {
+        "name": "Chart range",
+        "state": {
+          "6h": "6 h",
+          "24h": "24 h",
+          "3d": "3 days",
+          "7d": "7 days"
+        }
+      }
     }
   }
 }

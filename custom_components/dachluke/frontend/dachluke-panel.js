@@ -407,21 +407,24 @@ class DachlukePanel extends HTMLElement {
       ...((s.lights || []).slice(0, 1).map(l => ({ ...toggle(l, "Licht", "mdi:lightbulb"), grid_options: { columns: 6 } }))),
     ];
 
-    const humidityGraph = {
+    const RANGES_DASH = [["6h", "6 h", 6, 12], ["24h", "24 h", 24, 6], ["3d", "3 Tage", 72, 2], ["7d", "7 Tage", 168, 1]];
+    const humidityGraph = (hours, pph) => ({
       type: "custom:mini-graph-card", name: "Feuchte", icon: "mdi:water-percent",
-      hours_to_show: 24, points_per_hour: 12, line_width: 2, hour24: true,
-      lower_bound: 40, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
+      hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
+      // Abstand zu den Achsen: 0 % Luke liegt nicht auf der Grundlinie, Feuchte nicht am Rand
+      lower_bound: 30, upper_bound: 100, lower_bound_secondary: -10, upper_bound_secondary: 110,
       show: { labels: true, labels_secondary: true, legend: true, fill: false, points: false },
       entities: [
         { entity: s.humidity, name: "Dusche", color: "#2a78d6" },
         ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity" } : {}), name: "Raum", color: "#00838f" }] : []),
         { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false },
       ],
-    };
-
-    const absGraph = e.absolute_humidity ? {
+    });
+    const absGraph = (hours, pph) => e.absolute_humidity ? {
       type: "custom:mini-graph-card", name: "Absolute Feuchte", icon: "mdi:water", unit: "g/m³",
-      hours_to_show: 24, points_per_hour: 6, line_width: 2, hour24: true,
+      hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
+      // Feste Untergrenze 0, damit niedrige Außenwerte nicht auf der Achse kleben; oben weich
+      lower_bound: 0, upper_bound: "~20",
       show: { labels: true, legend: true, fill: false, points: false },
       entities: [
         { entity: e.absolute_humidity, name: "Raum", color: "#00838f" },
@@ -429,6 +432,23 @@ class DachlukePanel extends HTMLElement {
         { entity: st, attribute: "aussenfeuchte_absolut", name: "Außen", color: "#8a959b" },
       ],
     } : null;
+    const statesGraph = (hours) => ({ type: "history-graph", title: "Zustände", hours_to_show: hours,
+      entities: [e.open, ...(s.lights || []), s.fan, st].filter(Boolean).map(entity => ({ entity })) });
+    const sel = e.chart_range;
+    const rangeChips = sel ? [{
+      type: "custom:mushroom-chips-card", alignment: "center", grid_options: { columns: "full" },
+      chips: RANGES_DASH.map(([key, label]) => ({
+        type: "template", content: label, icon: "mdi:clock-outline",
+        icon_color: `{{ 'blue' if is_state('${sel}', '${key}') else 'grey' }}`,
+        tap_action: { action: "perform-action", perform_action: "select.select_option", target: { entity_id: sel }, data: { option: key } },
+      })),
+    }] : [];
+    // Pro Zeitraum eine Variante, sichtbar nur wenn ausgewählt (ohne Auswahl-Entität: 24 h)
+    const perRange = (make) => !sel ? [make(24, 6)].filter(Boolean)
+      : RANGES_DASH.map(([key, , h, pph]) => {
+          const card = make(h, pph);
+          return card && { type: "conditional", conditions: [{ condition: "state", entity: sel, state: key }], card, grid_options: { columns: "full" } };
+        }).filter(Boolean);
 
     const analysis = { type: "entities", title: "Seit letztem Zurücksetzen", show_header_toggle: false, entities: [
       ...COUNTER_TEXT.filter(([k]) => e[`count_${k}`]).map(([k, label]) => ({ entity: e[`count_${k}`], name: label })),
@@ -437,8 +457,6 @@ class DachlukePanel extends HTMLElement {
       ...(e.reset_counters ? [{ entity: e.reset_counters, name: "Analyse zurücksetzen" }] : []),
     ] };
 
-    const states = { type: "history-graph", title: "Zustände", hours_to_show: 24,
-      entities: [e.open, ...(s.lights || []), s.fan, st].filter(Boolean).map(entity => ({ entity })) };
 
     return {
       title: "Dachluke",
@@ -455,9 +473,10 @@ class DachlukePanel extends HTMLElement {
           ] },
           { type: "grid", cards: [
             sep("Verlauf", "mdi:chart-line"),
-            { ...humidityGraph, grid_options: { columns: "full" } },
-            ...(absGraph ? [{ ...absGraph, grid_options: { columns: "full" } }] : []),
-            { ...states, grid_options: { columns: "full" } },
+            ...rangeChips,
+            ...perRange(humidityGraph),
+            ...perRange(absGraph),
+            ...perRange(statesGraph),
           ] },
           { type: "grid", cards: [
             sep("Analyse", "mdi:clipboard-text-search-outline"),

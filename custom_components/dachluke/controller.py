@@ -163,6 +163,7 @@ class DachlukeController:
         self.saved_setpoint: float | None = None
         self.heating_lowered = False
         self.fan_started = False
+        self.chart_range = "24h"
         self.blocked_override = False
         self.last_duration: float | None = None
         self.last_open: datetime | None = None
@@ -262,6 +263,7 @@ class DachlukeController:
         self.saved_setpoint = data.get("saved_setpoint")
         self.heating_lowered = data.get("heating_lowered", False)
         self.fan_started = data.get("fan_started", False)
+        self.chart_range = data.get("chart_range", "24h")
         self.blocked_override = data.get("blocked_override", False)
         self.last_duration = data.get("last_duration")
         self.last_open = _dt(data.get("last_open"))
@@ -294,6 +296,7 @@ class DachlukeController:
             "saved_setpoint": self.saved_setpoint,
             "heating_lowered": self.heating_lowered,
             "fan_started": self.fan_started,
+            "chart_range": self.chart_range,
             "blocked_override": self.blocked_override,
             "last_duration": self.last_duration,
             "last_shower_minutes": self.last_shower_minutes,
@@ -1548,6 +1551,10 @@ class DachlukeController:
             return
         self._button_at["close"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Lüftung beenden‘")
         await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
+
+    async def async_set_chart_range(self, option: str) -> None:
+        self.chart_range = option
+        self._publish()
 
     async def async_reset_counters(self) -> None:
         self.counters = {k: 0 for k in COUNTERS}

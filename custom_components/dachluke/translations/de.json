@@ -340,6 +340,17 @@
       "stop_venting": {
         "name": "Lüftung beenden"
       }
+    },
+    "select": {
+      "chart_range": {
+        "name": "Diagramm-Zeitraum",
+        "state": {
+          "6h": "6 h",
+          "24h": "24 h",
+          "3d": "3 Tage",
+          "7d": "7 Tage"
+        }
+      }
     }
   }
 }

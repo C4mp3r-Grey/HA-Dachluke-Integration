@@ -35,3 +35,13 @@ async def test_vent_now_respects_weather(hass, setup, freezer):
     await hass.services.async_call("button", "press", {"entity_id": _button(hass, entry, "vent_now")}, blocking=True)
     await hass.async_block_till_done()
     assert calls["pos"][-1].data["position"] == 20
+
+
+async def test_chart_range_select(hass, setup):
+    entry, _ = setup
+    eid = er.async_get(hass).async_get_entity_id("select", "dachluke", f"{entry.entry_id}_chart_range")
+    assert hass.states.get(eid).state == "24h"
+    await hass.services.async_call("select", "select_option", {"entity_id": eid, "option": "7d"}, blocking=True)
+    await hass.async_block_till_done()
+    assert hass.states.get(eid).state == "7d"
+    assert entry.runtime_data.chart_range == "7d"

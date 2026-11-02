@@ -17,7 +17,7 @@ from homeassistant.helpers import config_validation as cv, entity_registry as er
 from .const import DOMAIN, PANEL_ELEMENT, PANEL_URL, STATIC_URL, VERSION
 from .controller import DachlukeController
 
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.BUTTON]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH, Platform.BUTTON, Platform.SELECT]
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 type DachlukeConfigEntry = ConfigEntry[DachlukeController]
