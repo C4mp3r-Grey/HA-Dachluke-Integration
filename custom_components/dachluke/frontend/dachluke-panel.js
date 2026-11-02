@@ -421,11 +421,12 @@ class DachlukePanel extends HTMLElement {
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
       // Feuchte mit Abstand zur Achse; Luke genau 0–100 %
       lower_bound: 30, upper_bound: 100, lower_bound_secondary: 0, upper_bound_secondary: 100,
-      show: { labels: true, labels_secondary: true, legend: true, fill: false, points: false },
+      // Kein großer Einzelwert (gehörte nur zur ersten Kurve) – Werte stehen an jeder Legende
+      show: { state: false, labels: true, labels_secondary: true, legend: true, fill: false, points: false },
       entities: [
-        { entity: s.humidity, name: "Dusche", color: "#2a78d6" },
-        ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity" } : {}), name: "Raum", color: "#00838f" }] : []),
-        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false },
+        { entity: s.humidity, name: "Dusche", color: "#2a78d6", show_legend_state: true },
+        ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity", unit: "%" } : {}), name: "Raum", color: "#00838f", show_legend_state: true }] : []),
+        { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false, show_legend_state: true },
       ],
     });
     const absGraph = (hours, pph) => e.absolute_humidity ? {
@@ -433,11 +434,11 @@ class DachlukePanel extends HTMLElement {
       hours_to_show: hours, points_per_hour: pph, line_width: 2, hour24: true,
       // Feste Untergrenze 0, damit niedrige Außenwerte nicht auf der Achse kleben; oben weich
       lower_bound: 0, upper_bound: "~20",
-      show: { labels: true, legend: true, fill: false, points: false },
+      show: { state: false, labels: true, legend: true, fill: false, points: false },
       entities: [
-        { entity: e.absolute_humidity, name: "Raum", color: "#00838f" },
-        { entity: st, attribute: "schliessen_bei_absolut", name: "Schließziel", color: "#eb6834", smoothing: false },
-        { entity: st, attribute: "aussenfeuchte_absolut", name: "Außen", color: "#8a959b" },
+        { entity: e.absolute_humidity, name: "Raum", color: "#00838f", show_legend_state: true },
+        { entity: st, attribute: "schliessen_bei_absolut", name: "Schließziel", color: "#eb6834", smoothing: false, unit: "g/m³", show_legend_state: true },
+        { entity: st, attribute: "aussenfeuchte_absolut", name: "Außen", color: "#8a959b", unit: "g/m³", show_legend_state: true },
       ],
     } : null;
     const statesGraph = (hours) => ({ type: "history-graph", title: "Zustände", hours_to_show: hours,
