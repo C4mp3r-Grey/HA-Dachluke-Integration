@@ -489,8 +489,8 @@ class DachlukePanel extends HTMLElement {
           `{% set a = state_attr('${cl}', 'hvac_action') %}`,
           `{{ 'Heizt' if a == 'heating' else 'Heizt nicht' if a in ['idle', 'off'] else (states('${cl}') | capitalize) }}`,
           c.settings.heating_enabled
-            ? ` · {{ 'beim Lüften auf ${c.settings.heating_vent_temp} °C abgesenkt, danach zurück auf ' ~ state_attr('${st}', 'heizung_gemerkter_sollwert') ~ ' °C' if state_attr('${st}', 'heizung_abgesenkt') else 'senkt beim Lüften auf ${c.settings.heating_vent_temp} °C' }}`
-            : ` · Heizungssteuerung der Dachluke aus`,
+            ? ` · {{ 'Thermostat regelt selbst (Fenster-auf-Funktion)' if state_attr('${st}', 'heizung_wirkungslos') else 'beim Lüften auf ${c.settings.heating_vent_temp} °C abgesenkt, danach zurück auf ' ~ state_attr('${st}', 'heizung_gemerkter_sollwert') ~ ' °C' if state_attr('${st}', 'heizung_abgesenkt') else 'senkt beim Lüften auf ${c.settings.heating_vent_temp} °C' }}`
+            : ` · Thermostat regelt selbst, die Dachluke greift nicht ein`,
         ].join(""),
         icon: "mdi:radiator",
         icon_color: `{{ 'deep-orange' if state_attr('${cl}', 'hvac_action') == 'heating' else 'grey' }}`,

@@ -135,6 +135,7 @@ SETTLED_FOR = timedelta(seconds=90)
 VERIFY_CLOSE = timedelta(seconds=90)
 VERIFY_CLOSE_2 = timedelta(seconds=150)
 RAIN_HOLD = timedelta(minutes=15)
+HEAT_CHECK = timedelta(minutes=3)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -210,6 +211,7 @@ class DachlukeController:
         self._last_rain_at: datetime | None = None
         self._reached_closed = True
         self._heating_warned = False
+        self.heating_ineffective = False
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -1643,10 +1645,35 @@ class DachlukeController:
         st = self._state(climate)
         if st is None or st.state in BAD_STATES:
             return
+        if self.heating_ineffective:
+            return  # Thermostat regelt beim offenen Fenster selbst (siehe HEIZUNG-Hinweis)
         current = st.attributes.get("temperature")
         self.saved_setpoint = float(current) if current is not None else None
         self.heating_lowered = True
         await self._call("climate", "set_temperature", {"entity_id": climate, "temperature": float(self.cfg[CONF_HEATING_VENT_TEMP])})
+        self._at("heat_check", dt_util.utcnow() + HEAT_CHECK, self._heat_check)
+
+    async def _heat_check(self, _now: datetime) -> None:
+        """Übernimmt das Thermostat die Lüft-Temperatur? HmIP-Thermostate mit verknüpftem
+        Fensterkontakt nutzen ihre eigene Fenster-auf-Temperatur und ignorieren den Wert."""
+        if not self.heating_lowered:
+            return
+        st = self._state(self.cfg.get(CONF_CLIMATE))
+        try:
+            now_set = float(st.attributes.get("temperature")) if st else None
+        except (TypeError, ValueError):
+            now_set = None
+        vent = float(self.cfg[CONF_HEATING_VENT_TEMP])
+        if now_set is not None and abs(now_set - vent) > 0.4:
+            self.heating_ineffective = True
+            self.heating_lowered = False  # nichts zurückstellen, sonst würde der eigene Wert überschrieben
+            self.saved_setpoint = None
+            self._log(
+                "HEIZUNG",
+                f"Thermostat übernimmt die Lüft-Temperatur {vent:.1f} °C nicht (Soll {now_set:.1f} °C) – vermutlich eigene "
+                "Fenster-auf-Funktion. Die Integration greift bis zum nächsten Neustart nicht mehr in die Heizung ein.",
+            )
+            self._publish()
 
     async def _fan_on(self) -> None:
         """Lüfter ergänzt die offene Luke. Lief er schon, bleibt er unangetastet."""
@@ -1878,6 +1905,7 @@ class DachlukeController:
                 "manual_duration": self.cfg[CONF_MANUAL_DURATION],
                 "heating_enabled": self.cfg[CONF_HEATING_ENABLED],
                 "heating_vent_temp": self.cfg[CONF_HEATING_VENT_TEMP],
+                "heating_ineffective": self.heating_ineffective,
                 "stall_enabled": self.cfg[CONF_STALL_ENABLED],
                 "stall_minutes": self.cfg[CONF_STALL_MINUTES],
                 "require_light": self.cfg[CONF_REQUIRE_LIGHT],

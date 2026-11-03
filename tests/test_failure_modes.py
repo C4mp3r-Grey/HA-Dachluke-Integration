@@ -159,3 +159,18 @@ async def test_reenable_starts_timer_for_open_window(hass, setup, freezer):
     await c.async_set_enabled(True)
     await step(hass, freezer, 16)
     assert calls["close"]
+
+
+# 9 ── HmIP-Thermostat mit eigener Fenster-auf-Temperatur ignoriert den Lüft-Wert
+async def test_thermostat_with_own_window_function(hass, setup, freezer):
+    entry, calls = setup
+    c = entry.runtime_data
+    await _open_auto(hass, freezer)
+    n = len(calls["temp"])
+    hass.states.async_set(CLIMATE, "heat", {"temperature": 21.0})  # Thermostat setzt seine Fenster-auf-Temperatur
+    await step(hass, freezer, 4)
+    assert c.heating_ineffective and not c.heating_lowered
+    await step(hass, freezer, 6, HUM, "70")
+    await step(hass, freezer, 6, HUM, "62")
+    await step(hass, freezer, 0.3, POS, "0")
+    assert len(calls["temp"]) == n, "nichts zurückschreiben, Wochenprogramm bleibt unangetastet"

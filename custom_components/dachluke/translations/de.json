@@ -154,7 +154,8 @@
           "frost_duration": "Maximale Dauer bei Frost"
         },
         "data_description": {
-          "heating_restore": "Vorheriger Wert stellt den Sollwert vom Öffnungszeitpunkt wieder her (Wochenprogramm bleibt erhalten)."
+          "heating_restore": "Vorheriger Wert stellt den Sollwert vom Öffnungszeitpunkt wieder her (Wochenprogramm bleibt erhalten).",
+          "heating_enabled": "Nur sinnvoll, wenn das Thermostat KEINE eigene Fenster-auf-Funktion hat. Homematic-IP-Thermostate mit verknüpftem Fensterkontakt nutzen beim offenen Fenster ihre eingestellte Fenster-auf-Temperatur und ignorieren diesen Wert. Die Integration erkennt das und greift dann nicht mehr ein."
         }
       },
       "second": {

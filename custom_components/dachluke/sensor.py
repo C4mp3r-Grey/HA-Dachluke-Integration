@@ -43,6 +43,7 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
             "aussenwerte_quelle": c.outdoor_source(),
             "aussentemperatur": c._weather_attr("temperature"),
             "heizung_abgesenkt": c.heating_lowered,
+            "heizung_wirkungslos": c.heating_ineffective,
             "heizung_gemerkter_sollwert": c.saved_setpoint,
             "niederschlag": c.rain_value()[0],
             "schliessen_bei": c.close_targets()[0],
