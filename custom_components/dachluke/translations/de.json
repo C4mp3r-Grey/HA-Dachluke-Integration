@@ -102,7 +102,11 @@
           "stall_enabled": "Schließen, wenn Trocknung stagniert",
           "stall_minutes": "Beobachtungszeitraum",
           "stall_delta": "Stagnation, wenn Feuchte weniger fällt als",
-          "extend_while_drying": "Weiterlüften, solange die Trocknung vorankommt"
+          "extend_while_drying": "Weiterlüften, solange die Trocknung vorankommt",
+          "cold_protect": "Auskühlschutz",
+          "cold_min_temp": "Lüftung beenden unter Raumtemperatur",
+          "mold_factor": "Kalibrierfaktor Wand (Schimmelrisiko)",
+          "vent_prediction_sensor": "Vergleich: vorhergesagte Lüftdauer (optional)"
         },
         "data_description": {
           "rise_threshold": "Anstieg der relativen Feuchte innerhalb von 5 Minuten. Der Blueprint nutzte 8.",
@@ -116,7 +120,10 @@
           "max_open": "Zählt ab dem erkannten Duschende. Vorher bleibt die Luke offen (bis zur Obergrenze).",
           "stall_enabled": "Greift erst nach dem Duschende. Fällt die Feuchte im Beobachtungszeitraum kaum noch, bringt weiteres Lüften nichts (z. B. bei feuchter Außenluft).",
           "stall_delta": "Fällt die relative Feuchte im Beobachtungszeitraum um weniger als diesen Wert, wird geschlossen.",
-          "extend_while_drying": "Ist die Nachlüftzeit um, die Luft aber noch feucht und die Feuchte fällt weiter, wird in 5-Minuten-Schritten verlängert – bis zur Obergrenze oder bis die Trocknung stagniert."
+          "extend_while_drying": "Ist die Nachlüftzeit um, die Luft aber noch feucht und die Feuchte fällt weiter, wird in 5-Minuten-Schritten verlängert – bis zur Obergrenze oder bis die Trocknung stagniert.",
+          "cold_protect": "Beendet eine automatische Lüftung, wenn der Raum zu kalt wird (Raumtemperatur bzw. Thermostat-Ist).",
+          "mold_factor": "Wie beim HA-Schimmelindikator: (T innen − T außen) / (T Wand − T außen), gemessen an der kältesten Stelle (z. B. Laibung der Dachluke) mit einem Infrarot-Thermometer. 1,3 ist ein grober Startwert für gedämmte Wände.",
+          "vent_prediction_sensor": "Z. B. der Sensor der HACS-Integration „Vent Optimization“ (Minuten). Wird nur protokolliert und mit der tatsächlichen Dauer verglichen."
         },
         "description": "Wann geöffnet und wann geschlossen wird."
       },
@@ -325,6 +332,12 @@
       },
       "last_shower_duration": {
         "name": "Dauer letztes Duschen (geschätzt)"
+      },
+      "wall_humidity": {
+        "name": "Feuchte an kältester Wand"
+      },
+      "count_close_cold": {
+        "name": "Geschlossen: Raum kühlt aus"
       }
     },
     "binary_sensor": {

@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.12.1"
+VERSION: Final = "1.13.0"
 
 # Zeitraum der Dashboard-Diagramme: Schlüssel → (Stunden, Punkte pro Stunde)
 CHART_RANGES: Final = {"6h": (6, 12), "24h": (24, 6), "3d": (72, 2), "7d": (168, 1)}
@@ -42,6 +42,10 @@ CONF_STALL_ENABLED: Final = "stall_enabled"
 CONF_STALL_MINUTES: Final = "stall_minutes"
 CONF_STALL_DELTA: Final = "stall_delta"
 CONF_EXTEND: Final = "extend_while_drying"
+CONF_COLD_ENABLED: Final = "cold_protect"
+CONF_COLD_MIN: Final = "cold_min_temp"
+CONF_MOLD_FACTOR: Final = "mold_factor"
+CONF_VENT_PREDICTION: Final = "vent_prediction_sensor"
 CONF_MIN_OPEN: Final = "min_open"
 CONF_MAX_OPEN: Final = "max_open"
 CONF_MANUAL_DURATION: Final = "manual_duration"
@@ -143,6 +147,10 @@ DEFAULTS: Final[dict] = {
     CONF_STALL_MINUTES: 10,
     CONF_STALL_DELTA: 1.0,
     CONF_EXTEND: True,
+    CONF_COLD_ENABLED: True,
+    CONF_COLD_MIN: 18.0,
+    CONF_MOLD_FACTOR: 1.3,
+    CONF_VENT_PREDICTION: None,
     CONF_MIN_OPEN: 5,
     CONF_MAX_OPEN: 20,
     CONF_MANUAL_DURATION: 15,
@@ -235,6 +243,7 @@ COUNTERS: Final = [
     "close_humidity",
     "close_timer",
     "close_stall",
+    "close_cold",
     "close_manual",
     "close_safety",
     "showers",

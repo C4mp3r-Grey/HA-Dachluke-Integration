@@ -69,6 +69,15 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
         value=lambda c: c.abs_humidity(),
     ),
     DachlukeSensorDescription(
+        key="wall_humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=0,
+        icon="mdi:wall",
+        value=lambda c: c.wall_humidity()[0],
+        attrs=lambda c: {"kritische_temperatur": c.wall_humidity()[1]},
+    ),
+    DachlukeSensorDescription(
         key="humidity_baseline",
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=0,

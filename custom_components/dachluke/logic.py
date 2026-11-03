@@ -91,6 +91,24 @@ def absolute_humidity(temp_c: float, rh: float) -> float:
     return round(216.7 * (rh / 100 * saturation) / (273.15 + temp_c), 2)
 
 
+def saturation_pressure(temp_c: float) -> float:
+    """Sättigungsdampfdruck in hPa (Magnus)."""
+    return 6.112 * math.exp(17.62 * temp_c / (243.12 + temp_c))
+
+
+def wall_humidity(indoor_temp: float, indoor_rh: float, outdoor_temp: float, factor: float) -> tuple[float, float]:
+    """Relative Feuchte an der kältesten Wandstelle (Verfahren wie HA 'Mold Indicator').
+
+    Die kritische Temperatur liegt zwischen innen und außen:
+    T_krit = T_außen + (T_innen - T_außen) / Faktor. Bei gleicher Wassermenge in der
+    Luft steigt dort die relative Feuchte. Ab etwa 70–80 % über längere Zeit droht Schimmel.
+    """
+    t_crit = outdoor_temp + (indoor_temp - outdoor_temp) / max(factor, 0.1)
+    vapour = indoor_rh / 100 * saturation_pressure(indoor_temp)
+    rh = 100 * vapour / saturation_pressure(t_crit)
+    return round(min(rh, 100.0), 1), round(t_crit, 1)
+
+
 def median(values: Sequence[float]) -> float | None:
     vals = sorted(v for v in values if v is not None)
     if not vals:

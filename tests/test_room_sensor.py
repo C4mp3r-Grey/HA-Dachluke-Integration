@@ -128,3 +128,32 @@ async def test_timer_extends_while_drying(hass, freezer):
         await step(hass, freezer, 3, HUM, v)
     assert not calls["close"], "nach 10 min verlängert, weil die Trocknung läuft"
     assert any(p["code"] == "VERLAENGERT" for p in c.protocol)
+
+
+async def test_cold_protection_closes(hass, freezer):
+    entry, calls = await _setup(hass, freezer, cold_min_temp=18.0)
+    await step(hass, freezer, 3, HUM, "75")
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")
+    await step(hass, freezer, 3, HUM, "90")       # Duschende
+    hass.states.async_set(CLIMATE, "auto", {"current_temperature": 17.6, "current_humidity": 70, "temperature": 21})
+    await step(hass, freezer, 3)
+    assert calls["close"]
+    assert counter(hass, "close_cold") == 1
+    assert any("kühlt aus" in p["text"] for p in entry.runtime_data.protocol)
+
+
+async def test_prediction_and_wall_humidity_logged(hass, freezer):
+    hass.states.async_set("sensor.vent_optimization", "18")
+    entry, calls = await _setup(hass, freezer, vent_prediction_sensor="sensor.vent_optimization")
+    c = entry.runtime_data
+    await step(hass, freezer, 3, HUM, "75")
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")
+    auf = [p["text"] for p in c.protocol if p["code"] == "AUTO_AUF"][-1]
+    assert "Vorhersage Lüftdauer 18 min" in auf and "Wandfeuchte" in auf
+    await step(hass, freezer, 3, HUM, "90")
+    await step(hass, freezer, 3, HUM, "66")
+    await step(hass, freezer, 3, ROOM, "60")
+    bilanz = [p["text"] for p in c.protocol if p["code"] == "BILANZ"][-1]
+    assert "Vorhersage Lüftdauer 18 min, tatsächlich" in bilanz and "Wandfeuchte" in bilanz

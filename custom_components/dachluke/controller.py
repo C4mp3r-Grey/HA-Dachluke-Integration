@@ -84,6 +84,10 @@ from .const import (
     CONF_SHOWER_END_DROP,
     CONF_STALL_DELTA,
     CONF_EXTEND,
+    CONF_COLD_ENABLED,
+    CONF_COLD_MIN,
+    CONF_MOLD_FACTOR,
+    CONF_VENT_PREDICTION,
     CONF_STALL_ENABLED,
     CONF_STALL_MINUTES,
     CONF_TEMP_SENSOR,
@@ -212,6 +216,9 @@ class DachlukeController:
         self._reached_closed = True
         self._heating_warned = False
         self.heating_ineffective = False
+        self._wall_at_open: float | None = None
+        self._prediction_at_open: float | None = None
+        self._extra_open = ""
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -642,6 +649,16 @@ class DachlukeController:
             self.ref_samples.popleft()
         self._store.async_delay_save(self._serialize, 30)
 
+    def wall_humidity(self) -> tuple[float | None, float | None]:
+        """Feuchte an der kältesten Wandstelle (Schimmelrisiko) und deren Temperatur."""
+        t_in, rh_in, t_out = self.room_temperature(), self.room_humidity(), self._weather_attr("temperature")
+        if None in (t_in, rh_in, t_out):
+            return None, None
+        return logic.wall_humidity(t_in, rh_in, t_out, float(self.cfg[CONF_MOLD_FACTOR]))
+
+    def vent_prediction(self) -> float | None:
+        return self._num(self.cfg.get(CONF_VENT_PREDICTION))
+
     def position_reason(self) -> str:
         """Warum die Zielposition so gewählt wird."""
         weather = self.weather_state()
@@ -823,6 +840,7 @@ class DachlukeController:
                 self.has_room and eid in (cfg.get(CONF_ROOM_HUMIDITY), cfg.get(CONF_ROOM_TEMP), cfg.get(CONF_CLIMATE))
             ):
                 self._record_room(dt_util.utcnow())
+                await self._check_cold()
                 await self._evaluate_close()
             if eid == cfg[CONF_POSITION_SENSOR]:
                 await self._on_position(old, new)
@@ -964,6 +982,8 @@ class DachlukeController:
         self.shower_start = None
         self.peak_time = None
         self.max_pos = pos
+        self._wall_at_open = self.wall_humidity()[0]
+        self._prediction_at_open = None
         self.counters["open_manual"] += 1
         if not self.enabled:
             # Automatik aus: Handöffnung bleibt offen. Wetter-Sperre und Alarm schließen weiterhin.
@@ -1101,6 +1121,7 @@ class DachlukeController:
         """Sicherheitsnetz: Zustand der Luke und interne Lüftung müssen zusammenpassen."""
         now = dt_util.utcnow()
         await self._check_rain_change()  # Regen-Haltezeit läuft ab
+        await self._check_cold()
         if self.heating_lowered and self.mode == MODE_IDLE:
             await self._heating_restore()  # Thermostat war beim Schließen nicht erreichbar
         busy = (
@@ -1127,6 +1148,17 @@ class DachlukeController:
                 self._log("KORREKTUR", "Luke zu, aber Lüftung noch aktiv – Lüftung beendet")
             await self._finish_vent("korrektur")
             self._publish()
+
+    async def _check_cold(self) -> None:
+        """Auskühlschutz: Lüftung beenden, wenn der Raum unter die Mindesttemperatur fällt."""
+        if not self.cfg[CONF_COLD_ENABLED] or self.mode not in (MODE_AUTO, MODE_SECOND) or not self.opened_at:
+            return
+        if dt_util.utcnow() - self.opened_at < timedelta(minutes=float(self.cfg[CONF_MIN_OPEN])):
+            return
+        temp = self.room_temperature()
+        limit = float(self.cfg[CONF_COLD_MIN])
+        if temp is not None and temp < limit:
+            await self._close("auskuehlung", f"Raum kühlt aus: {temp:.1f} °C unter {limit:.1f} °C")
 
     async def _verify_close(self, _now: datetime) -> None:
         """Nach dem Schließbefehl prüfen, ob die Luke wirklich zu ist."""
@@ -1232,12 +1264,20 @@ class DachlukeController:
         frost = " ❄️ Frost" if self.frost_active() else ""
         start = self.shower_start
         since = f", Anstieg seit {dt_util.as_local(start).strftime('%H:%M')}" if start else ""
+        self._wall_at_open = self.wall_humidity()[0]
+        self._prediction_at_open = self.vent_prediction()
+        extra = []
+        if self._wall_at_open is not None:
+            extra.append(f"Wandfeuchte {self._wall_at_open:.0f} %")
+        if self._prediction_at_open is not None:
+            extra.append(f"Vorhersage Lüftdauer {self._prediction_at_open:.0f} min")
+        self._extra_open = ("; " + ", ".join(extra)) if extra else ""
         self._log(
             "AUTO_AUF",
             f"Automatisch geöffnet auf {target} % – Öffnungsweite: {self.position_reason()} "
             f"(Auslöser {trigger}, +{self.rise or 0:.1f} %/5 min, Basis {self.baseline or 0:.0f} %"
             f"{f' / {self.baseline_ah:.1f} g/m³' if self.baseline_ah is not None else ''}{since}); "
-            f"{self._target_text()}; {self.context()}",
+            f"{self._target_text()}{self._extra_open}; {self.context()}",
         )
         await self._notify("🪟 Dachluke geöffnet", f"{target} %, Steigung +{self.rise:.1f} %/5 min, rF {hum:.0f} %.{frost}",
                            alexa="Dachluke geöffnet. Lüftung aktiv.")
@@ -1299,6 +1339,7 @@ class DachlukeController:
             "feuchte": "close_humidity",
             "timer": "close_timer",
             "stagnation": "close_stall",
+            "auskuehlung": "close_cold",
             "sicherheit": "close_safety",
             "hand": "close_manual",
         }.get(kind)
@@ -1309,7 +1350,7 @@ class DachlukeController:
         await self._finish_vent(kind)
         if kind != "hand":
             self._log("ZU", f"Geschlossen: {text}")
-        if kind in ("feuchte", "timer", "stagnation") and not from_manual:
+        if kind in ("feuchte", "timer", "stagnation", "auskuehlung") and not from_manual:
             await self._notify("✅ Dachluke geschlossen", text,
                                critical=kind == "timer",
                                alexa="Lüftung abgeschlossen. Dachluke geschlossen.")
@@ -1351,6 +1392,12 @@ class DachlukeController:
         if self.last_shower_minutes is not None and self.shower_start:
             parts.append(f"Duschen ca. {self.last_shower_minutes:.0f} min" + ("" if self.shower_end else " (kein Duschende erkannt)"))
         parts.append(self._target_text())
+        wall, t_crit = self.wall_humidity()
+        if wall is not None:
+            start = f"{self._wall_at_open:.0f} % → " if self._wall_at_open is not None else ""
+            parts.append(f"Wandfeuchte {start}{wall:.0f} % (kälteste Stelle {t_crit:.1f} °C)")
+        if self._prediction_at_open is not None:
+            parts.append(f"Vorhersage Lüftdauer {self._prediction_at_open:.0f} min, tatsächlich {minutes:.0f} min")
         parts.append(self.context())
         self._log("BILANZ", "; ".join(parts))
 

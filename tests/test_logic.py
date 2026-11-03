@@ -54,3 +54,11 @@ def test_humidity_drop_uses_last_known_value():
     assert logic.humidity_drop(samples, m(12), 10) == 8.5
     assert logic.humidity_drop(samples, m(20), 10) == 0.5
     assert logic.humidity_drop(samples, m(5), 10) is None
+
+
+def test_wall_humidity():
+    rh, t_crit = logic.wall_humidity(21.0, 60.0, 5.0, 1.3)
+    assert abs(t_crit - (5 + 16 / 1.3)) < 0.1
+    assert 70 < rh < 80          # kälteste Stelle ~17,3 °C → ~76 %
+    rh2, _ = logic.wall_humidity(21.0, 60.0, 5.0, 1.0)
+    assert abs(rh2 - 60.0) < 0.2  # Faktor 1 = Wand so warm wie der Raum

@@ -50,6 +50,9 @@ Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie 
 | Erhöhte Ausgangsfeuchte | – | war der Raum vor dem Duschen schon feuchter als üblich, gilt die **übliche Raumfeuchte** als Ziel (Median aus Ruhephasen der letzten 3 Tage). Untergrenze ist die absolute Feuchte draußen + 0,5 g/m³ |
 | Zwei Sensoren beim Schließen | – | mit Raumsensor schließt die Luke erst, wenn **beide** passen: Raumluft wieder nahe am Ziel **und** die feuchte Luft über der Dusche verzogen. Stagnation erst, wenn **kein** Sensor mehr fällt |
 | Nachlüftzeit | harte Grenze | weich: fällt die Feuchte noch, wird in 5-min-Schritten verlängert (bis Obergrenze oder Stagnation) |
+| Auskühlschutz | – | automatische Lüftung endet, wenn der Raum unter die Mindesttemperatur fällt (Standard 18 °C) |
+| Schimmelrisiko | – | Sensor „Feuchte an kältester Wand“ nach dem Verfahren des HA-Schimmelindikators; Wert beim Öffnen und in der Bilanz |
+| Vergleich Lüftdauer | – | optionaler Vorhersage-Sensor (z. B. HACS „Vent Optimization“) wird beim Öffnen und in der Bilanz mit der tatsächlichen Dauer verglichen |
 | Trocknung stagniert | Luke blieb bis Zeitablauf offen | schließt, wenn die Feuchte nach dem Duschen 10 min lang um weniger als 1 % fällt (z. B. bei feuchter Außenluft) |
 | Maximale Öffnungsdauer | ab Öffnen | ab **Duschende** (Feuchte fällt um 3 % vom Höchstwert). Während des Duschens bleibt die Luke offen, Obergrenze 90 min |
 | Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik |

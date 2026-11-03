@@ -20,6 +20,7 @@ const COUNTER_TEXT = [
   ["close_humidity", "Zu wegen Feuchte"],
   ["close_timer", "Zu nach Zeitablauf"],
   ["close_stall", "Zu: Trocknung stagniert"],
+  ["close_cold", "Zu: Raum kühlt aus"],
   ["close_manual", "Von Hand geschlossen"],
   ["close_safety", "Zu wegen Wetter/Alarm"],
   ["sensor_failures", "Sensorausfälle"],
@@ -386,6 +387,8 @@ class DachlukePanel extends HTMLElement {
       chip(`Dusche {{ states('${s.humidity}') | int(0) }} %`, "mdi:shower-head", `{{ 'blue' if states('${s.humidity}') | float(0) >= 85 else 'grey' }}`, s.humidity),
       ...(roomExpr ? [chip(`Raum {{ ${roomExpr} | int(0) }} %`, "mdi:home-thermometer", "teal", s.room_humidity)] : []),
       ...(e.absolute_humidity ? [chip(`{{ states('${e.absolute_humidity}') | round(1) }} g/m³`, "mdi:water", "cyan", e.absolute_humidity)] : []),
+      ...(e.wall_humidity ? [chip(`Wand {{ states('${e.wall_humidity}') | int(0) }} %`, "mdi:wall",
+        `{{ 'red' if states('${e.wall_humidity}') | float(0) >= 80 else 'orange' if states('${e.wall_humidity}') | float(0) >= 70 else 'green' }}`, e.wall_humidity)] : []),
       chip(`außen {{ state_attr('${st}', 'aussenfeuchte_absolut') | round(1) if state_attr('${st}', 'aussenfeuchte_absolut') is number else '–' }} g/m³`, "mdi:weather-partly-rainy", "grey", s.weather || null),
       ...(s.climate ? [chip(`{{ state_attr('${s.climate}', 'current_temperature') }} → {{ state_attr('${s.climate}', 'temperature') }} °C`, "mdi:radiator",
         `{{ 'deep-orange' if state_attr('${s.climate}', 'hvac_action') == 'heating' else 'grey' }}`, s.climate)] : []),
@@ -449,6 +452,7 @@ class DachlukePanel extends HTMLElement {
       entities: [
         ...(s.room_humidity ? [{ entity: s.room_humidity, ...(roomIsClimate ? { attribute: "current_humidity", unit: "%" } : {}), name: "Raum", color: "#00838f", show_legend_state: true }] : []),
         { entity: s.humidity, name: "Dusche", color: "#2a78d6", show_legend_state: true },
+        ...(e.wall_humidity ? [{ entity: e.wall_humidity, name: "Wand", color: "#d03b3b", show_legend_state: true }] : []),
         { entity: s.position, name: "Luke", color: "#1baf7a", y_axis: "secondary", show_fill: true, aggregate_func: "max", smoothing: false, show_legend_state: true },
       ],
     });

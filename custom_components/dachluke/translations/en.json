@@ -87,7 +87,11 @@
           "stall_enabled": "Close when drying stalls",
           "stall_minutes": "Observation period",
           "stall_delta": "Stalled if humidity drops less than",
-          "extend_while_drying": "Keep venting while drying progresses"
+          "extend_while_drying": "Keep venting while drying progresses",
+          "cold_protect": "Cooling protection",
+          "cold_min_temp": "Stop venting below room temperature",
+          "mold_factor": "Wall calibration factor (mold risk)",
+          "vent_prediction_sensor": "Comparison: predicted venting time (optional)"
         }
       },
       "weather": {
@@ -279,6 +283,12 @@
       },
       "last_shower_duration": {
         "name": "Last shower duration (estimated)"
+      },
+      "wall_humidity": {
+        "name": "Humidity at coldest wall"
+      },
+      "count_close_cold": {
+        "name": "Closed: room cooling down"
       }
     },
     "binary_sensor": {
