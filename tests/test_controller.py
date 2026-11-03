@@ -39,8 +39,16 @@ async def setup(hass: HomeAssistant, freezer: FrozenDateTimeFactory):
     calls = {
         "pos": async_mock_service(hass, "cover", "set_cover_position"),
         "close": async_mock_service(hass, "cover", "close_cover"),
-        "temp": async_mock_service(hass, "climate", "set_temperature"),
+        "temp": [],
     }
+
+    async def _set_temp(call):
+        # Wie ein Thermostat ohne eigene Fenster-auf-Funktion: übernimmt den Sollwert
+        calls["temp"].append(call)
+        st = hass.states.get(CLIMATE)
+        hass.states.async_set(CLIMATE, st.state if st else "heat", {**(st.attributes if st else {}), "temperature": call.data["temperature"]})
+
+    hass.services.async_register("climate", "set_temperature", _set_temp)
     entry = MockConfigEntry(
         domain=DOMAIN,
         title="Dachluke",
