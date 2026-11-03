@@ -132,6 +132,9 @@ BS_INTERVAL = timedelta(minutes=10)
 BS_MAX_AGE = timedelta(minutes=90)
 CHECK_INTERVAL = timedelta(minutes=2)
 SETTLED_FOR = timedelta(seconds=90)
+VERIFY_CLOSE = timedelta(seconds=90)
+VERIFY_CLOSE_2 = timedelta(seconds=150)
+RAIN_HOLD = timedelta(minutes=15)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -204,6 +207,9 @@ class DachlukeController:
         self._bs_failed = False
         self._bs_station: str | None = None
         self._last_restricted: bool | None = None
+        self._last_rain_at: datetime | None = None
+        self._reached_closed = True
+        self._heating_warned = False
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -406,6 +412,11 @@ class DachlukeController:
                 if cp is not None:
                     return float(cp)
         return pos
+
+    def reliable_open(self) -> bool | None:
+        """Nur aus dem Positionssensor (ohne Ersatzwert vom Cover) – für das Sicherheitsnetz."""
+        pos = self._num(self.cfg[CONF_POSITION_SENSOR])
+        return None if pos is None else pos > 0
 
     def is_open(self) -> bool | None:
         pos = self.position()
@@ -682,7 +693,12 @@ class DachlukeController:
         value, _ = self.rain_value()
         if value is None:
             return None
-        return value >= float(self.cfg[CONF_RAIN_THRESHOLD])
+        now = dt_util.utcnow()
+        if value >= float(self.cfg[CONF_RAIN_THRESHOLD]):
+            self._last_rain_at = now
+            return True
+        # Erst nach 15 min ohne Regen wieder weit öffnen – verhindert ständiges Auf und Zu
+        return bool(self._last_rain_at and now - self._last_rain_at < RAIN_HOLD)
 
     def weather_restricted(self) -> bool:
         r = self.restricted_now()
@@ -809,7 +825,7 @@ class DachlukeController:
             if eid == cfg[CONF_POSITION_SENSOR]:
                 await self._on_position(old, new)
             if eid in self._buttons():
-                await self._on_button(eid, new)
+                await self._on_button(eid, old, new)
             if eid in (cfg.get(CONF_LIGHTS) or []) and new and new.state == STATE_ON:
                 await self._evaluate_open("licht")
             if eid == cfg.get(CONF_WEATHER):
@@ -890,6 +906,8 @@ class DachlukeController:
         if self.mode != MODE_IDLE:
             self.max_pos = max(self.max_pos, new_pos)
         self._schedule_settle()
+        if new_pos == 0:
+            self._reached_closed = True
         if old_pos is not None and old_pos == new_pos:
             return  # nur Attribut-Update, keine Bewegung
         was_open = old_pos is not None and old_pos > 0
@@ -945,6 +963,12 @@ class DachlukeController:
         self.peak_time = None
         self.max_pos = pos
         self.counters["open_manual"] += 1
+        if not self.enabled:
+            # Automatik aus: Handöffnung bleibt offen. Wetter-Sperre und Alarm schließen weiterhin.
+            self.vent_end = None
+            self._cancel("vent")
+            self._log("HAND_AUF", f"Von Hand geöffnet {self._manual_source('open')} – Automatik aus, kein Zeitlimit")
+            return
         self._set_vent_end(now + timedelta(minutes=self._manual_minutes()))
         await self._heating_lower()
         await self._fan_on()
@@ -991,8 +1015,12 @@ class DachlukeController:
         await self._notify("⏸️ Dachluke", f"Von Hand geschlossen, Automatik pausiert für {self.cfg[CONF_PAUSE_DURATION]} min.",
                            alexa="Dachluke geschlossen. Automatik pausiert.")
 
-    async def _on_button(self, eid: str, new: State | None) -> None:
+    async def _on_button(self, eid: str, old: State | None, new: State | None) -> None:
         if new is None or new.state in BAD_STATES:
+            return
+        if old is None or old.state in BAD_STATES:
+            # Entität wird (z. B. nach Neustart) wiederhergestellt – das ist kein Tastendruck
+            self._button_seen[eid] = new.state
             return
         if self._button_seen.get(eid) == new.state:
             return  # wiederhergestellter Zustand, kein neuer Tastendruck
@@ -1070,17 +1098,53 @@ class DachlukeController:
     async def _consistency_check(self) -> None:
         """Sicherheitsnetz: Zustand der Luke und interne Lüftung müssen zusammenpassen."""
         now = dt_util.utcnow()
-        if self._moving() or self._pending or (self._last_pos_change and now - self._last_pos_change < SETTLED_FOR):
+        await self._check_rain_change()  # Regen-Haltezeit läuft ab
+        if self.heating_lowered and self.mode == MODE_IDLE:
+            await self._heating_restore()  # Thermostat war beim Schließen nicht erreichbar
+        busy = (
+            self._moving()
+            or self._pending_is("open")
+            or self._pending_is("close")
+            or "verify_close" in self._timers
+            or "verify_close_2" in self._timers
+            or (self._last_pos_change and now - self._last_pos_change < SETTLED_FOR)
+        )
+        if busy:
             return
-        open_ = self.is_open()
+        open_ = self.reliable_open()  # nur echte Positionsmeldung, kein Ersatzwert
         if open_ and self.mode == MODE_IDLE:
             self._log("KORREKTUR", "Luke offen, aber keine Lüftung bekannt – als Handöffnung übernommen")
             await self._on_opened(self.position() or 0)
             self._publish()
         elif open_ is False and self.mode != MODE_IDLE:
-            self._log("KORREKTUR", "Luke zu, aber Lüftung noch aktiv – Lüftung beendet")
+            if self.max_pos <= 0:
+                self._log("FEHLER", "Luke hat sich nach dem Öffnungsbefehl nicht bewegt – Lüftung beendet")
+                await self._notify("⚠️ Dachluke", "Die Luke hat sich nicht geöffnet. Bitte CCU und Antrieb prüfen.",
+                                   critical=True, alexa="Achtung. Die Dachluke hat sich nicht geöffnet.")
+            else:
+                self._log("KORREKTUR", "Luke zu, aber Lüftung noch aktiv – Lüftung beendet")
             await self._finish_vent("korrektur")
             self._publish()
+
+    async def _verify_close(self, _now: datetime) -> None:
+        """Nach dem Schließbefehl prüfen, ob die Luke wirklich zu ist."""
+        if self._reached_closed or self.reliable_open() is not True:
+            return
+        if self._moving():
+            self._at("verify_close", dt_util.utcnow() + timedelta(seconds=30), self._verify_close)
+            return
+        self._log("FEHLER", f"Luke steht nach dem Schließbefehl noch bei {self.position() or 0:.0f} % – zweiter Versuch")
+        self._pending = ("close", dt_util.utcnow() + timedelta(seconds=PENDING_SECONDS))
+        await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
+        self._at("verify_close_2", dt_util.utcnow() + VERIFY_CLOSE_2, self._verify_close_2)
+
+    async def _verify_close_2(self, _now: datetime) -> None:
+        if self._reached_closed or self.reliable_open() is not True:
+            return
+        self._log("FEHLER", f"Luke schließt nicht (steht bei {self.position() or 0:.0f} %) – bitte prüfen")
+        await self._notify("⚠️ Dachluke schließt nicht",
+                           f"Die Luke steht nach zwei Schließbefehlen noch bei {self.position() or 0:.0f} %. Bitte prüfen.",
+                           critical=True, alexa="Achtung. Die Dachluke schließt nicht.")
 
     @callback
     def _bs_tick(self, _now: datetime) -> None:
@@ -1226,7 +1290,9 @@ class DachlukeController:
         """Luke schließen. kind: feuchte | timer | nachlueften | sicherheit | hand."""
         was_mode = self.mode
         self._pending = ("close", dt_util.utcnow() + timedelta(seconds=PENDING_SECONDS))
+        self._reached_closed = False
         await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
+        self._at("verify_close", dt_util.utcnow() + VERIFY_CLOSE, self._verify_close)
         counter = {
             "feuchte": "close_humidity",
             "timer": "close_timer",
@@ -1615,6 +1681,13 @@ class DachlukeController:
         if not self.heating_lowered or not climate:
             self.heating_lowered = False
             return
+        st = self._state(climate)
+        if st is None or st.state in BAD_STATES:
+            if not self._heating_warned:
+                self._log("FEHLER", "Thermostat nicht erreichbar – Heizung wird zurückgestellt, sobald es wieder da ist")
+                self._heating_warned = True
+            return  # heating_lowered bleibt gesetzt, Sicherheitsnetz versucht es erneut
+        self._heating_warned = False
         if self.cfg[CONF_HEATING_RESTORE] == HEATING_RESTORE_PREVIOUS and self.saved_setpoint is not None:
             temp = self.saved_setpoint
         else:
@@ -1657,6 +1730,9 @@ class DachlukeController:
         if value:
             self.pause_until = None
             self._cancel("pause")
+            if self.mode == MODE_MANUAL and self.vent_end is None and self.is_open():
+                self._set_vent_end(dt_util.utcnow() + timedelta(minutes=self._manual_minutes()))
+                self._log("HAND_AUF", f"Automatik wieder an – offene Luke schließt in {self._manual_minutes():.0f} min")
         self._log("AKTIV" if value else "DEAKTIV", f"Automatik {'aktiviert' if value else 'deaktiviert'} (Schalter)")
         self._publish()
 

@@ -39,6 +39,7 @@ async def test_start_and_reason_and_shower_duration(hass, freezer):
     assert texts(entry, "START") and "Version" in texts(entry, "START")[0]
     await step(hass, freezer, 3, HUM, "70")   # 06:03 Anstieg beginnt
     await step(hass, freezer, 2, HUM, "82")   # 06:05 öffnet
+    hass.states.async_set(POS, "20")
     auf = texts(entry, "AUTO_AUF")[0]
     assert "auf 20 % – Öffnungsweite: eingeschränktes Wetter (rainy)" in auf
     assert "außen rainy 7.5 °C 90 %" in auf

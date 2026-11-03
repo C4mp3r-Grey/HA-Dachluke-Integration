@@ -61,6 +61,22 @@ Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie 
 | Feuchte-Anstieg | eigener Statistik-Sensor nötig | wird intern berechnet, robust bei seltenen Messwerten |
 | Warteschlange | konnte Ereignisse stumm verwerfen | jedes Ereignis wird verarbeitet |
 
+## Sicherheitsnetz
+
+Getestete Fehlerfälle (`tests/test_failure_modes.py`, `tests/test_regression_1103.py`):
+
+| Fall | Verhalten |
+|---|---|
+| Positionsmeldung ohne Bewegung (z. B. 0 → 0) | wird ignoriert, kein „von Hand geschlossen“ |
+| Luke offen, aber keine Lüftung bekannt | nach spätestens ~4 min als Handöffnung übernommen, schließt nach der Handöffnungs-Dauer (`KORREKTUR`) |
+| Luke öffnet sich nach dem Befehl nicht | Lüftung beendet, Heizung zurück, Meldung (`FEHLER`) |
+| Luke schließt nach dem Befehl nicht | nach 90 s zweiter Versuch, danach kritische Meldung (`FEHLER`) |
+| Feuchte- oder Positionssensor fällt aus | Zeitgrenzen schließen trotzdem, das Sicherheitsnetz nutzt nur echte Positionsmeldungen |
+| Thermostat beim Zurückstellen nicht erreichbar | wird nachgeholt, sobald es wieder da ist |
+| Tasten-Entität wird nach Neustart wiederhergestellt | gilt nicht als Tastendruck |
+| Regen flattert um die Schwelle | sofort klein, erst nach 15 min ohne Regen wieder weit |
+| Automatik aus und Luke von Hand geöffnet | bleibt offen (kein Zeitlimit), Hagel/Sturm/Alarm schließen trotzdem |
+
 ## Tasten
 
 | Taste | Kurz | Lang |

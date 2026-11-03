@@ -36,7 +36,8 @@ async def test_room_sensor_decides_close(hass, freezer):
     entry, calls = await _setup(hass, freezer)
     c = entry.runtime_data
     await step(hass, freezer, 3, HUM, "75")
-    await step(hass, freezer, 2, HUM, "95")       # Duschsensor löst aus
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")       # Duschsensor löst aus
     assert calls["pos"]
     assert c.baseline == 60 and c.shower_baseline == 65
     assert c.baseline_ah == logic.absolute_humidity(21.0, 60)
@@ -64,6 +65,7 @@ async def test_room_humidity_from_climate_attribute(hass, freezer):
     assert c.room_humidity() == 60
     await step(hass, freezer, 3, HUM, "75")
     await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")
     assert c.baseline == 60
     hass.states.async_set(CLIMATE, "auto", {"current_temperature": 21.5, "current_humidity": 70, "temperature": 21})
     await step(hass, freezer, 3)
@@ -74,7 +76,8 @@ async def test_no_close_while_showering_and_duration_set(hass, freezer):
     entry, calls = await _setup(hass, freezer)
     c = entry.runtime_data
     await step(hass, freezer, 3, HUM, "75")
-    await step(hass, freezer, 2, HUM, "95")       # öffnet
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")       # öffnet
     for v in ("99", "100", "100", "100"):         # 12 min Duschen, Raum reagiert kaum
         await step(hass, freezer, 3, HUM, v)
         hass.states.async_set(ROOM, "61")
@@ -96,7 +99,8 @@ async def test_lagging_room_sensor_scenario_from_log(hass, freezer):
     entry, calls = await _setup(hass, freezer, stall_enabled=True)
     c = entry.runtime_data
     await step(hass, freezer, 3, HUM, "75")
-    await step(hass, freezer, 2, HUM, "95")       # öffnet
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")       # öffnet
     await step(hass, freezer, 5, HUM, "100")
     await step(hass, freezer, 3, HUM, "96")       # Duschende
     assert not calls["close"]
@@ -117,6 +121,7 @@ async def test_timer_extends_while_drying(hass, freezer):
     c = entry.runtime_data
     await step(hass, freezer, 3, HUM, "75")
     await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")
     await step(hass, freezer, 3, HUM, "90")       # Duschende
     hass.states.async_set(ROOM, "75")
     for v in ("88", "85", "82", "80"):            # 12 min, fällt stetig

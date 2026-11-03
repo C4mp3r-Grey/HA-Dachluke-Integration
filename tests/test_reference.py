@@ -50,6 +50,7 @@ async def test_elevated_baseline_uses_reference(hass, freezer):
     await step(hass, freezer, 5, HUM, "72")
     await step(hass, freezer, 3, HUM, "80")
     await step(hass, freezer, 2, HUM, "95")  # neue Dusche
+    await step(hass, freezer, 0.2, POS, "80")
     assert calls["pos"]
     assert c.baseline == 72
     t_rh, t_ah = c.close_targets()
