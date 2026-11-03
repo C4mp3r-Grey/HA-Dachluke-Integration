@@ -130,6 +130,8 @@ REF_KEEP = timedelta(days=3)
 REF_MIN_SAMPLES = 8
 BS_INTERVAL = timedelta(minutes=10)
 BS_MAX_AGE = timedelta(minutes=90)
+CHECK_INTERVAL = timedelta(minutes=2)
+SETTLED_FOR = timedelta(seconds=90)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
 
@@ -234,6 +236,7 @@ class DachlukeController:
                 self._button_seen[eid] = st.state
         self._unsubs.append(async_track_state_change_event(self.hass, watched, self._handle_event))
         self._unsubs.append(async_track_time_interval(self.hass, self._sample_reference, REF_INTERVAL))
+        self._unsubs.append(async_track_time_interval(self.hass, self._consistency_tick, CHECK_INTERVAL))
         if self.cfg[CONF_BRIGHTSKY]:
             self._unsubs.append(async_track_time_interval(self.hass, self._bs_tick, BS_INTERVAL))
             self.hass.async_create_task(self._fetch_brightsky())
@@ -887,10 +890,15 @@ class DachlukeController:
         if self.mode != MODE_IDLE:
             self.max_pos = max(self.max_pos, new_pos)
         self._schedule_settle()
+        if old_pos is not None and old_pos == new_pos:
+            return  # nur Attribut-Update, keine Bewegung
         was_open = old_pos is not None and old_pos > 0
         if new_pos > 0 and not was_open:
             await self._on_opened(new_pos)
-        elif new_pos == 0 and (was_open or self.mode != MODE_IDLE):
+        elif new_pos == 0 and was_open:
+            await self._on_closed()
+        elif new_pos == 0 and old_pos is None and self.mode != MODE_IDLE and not self._pending_is("open"):
+            # Sensor war kurz nicht verfügbar und meldet jetzt "zu"
             await self._on_closed()
 
     @staticmethod
@@ -902,6 +910,10 @@ class DachlukeController:
         except ValueError:
             return None
 
+    def _pending_is(self, kind: str) -> bool:
+        pending = self._pending
+        return bool(pending and pending[0] == kind and dt_util.utcnow() <= pending[1])
+
     def _take_pending(self, kind: str) -> bool:
         pending = self._pending
         if pending and pending[0] == kind and dt_util.utcnow() <= pending[1]:
@@ -910,8 +922,8 @@ class DachlukeController:
         return False
 
     async def _on_opened(self, pos: float) -> None:
-        if self._take_pending("open"):
-            return
+        if self._take_pending("open") and self.mode != MODE_IDLE:
+            return  # eigene Öffnung, Lüftung läuft bereits
         if self.mode != MODE_IDLE:
             return
         now = dt_util.utcnow()
@@ -1050,6 +1062,25 @@ class DachlukeController:
         self._last_restricted = now
         value, src = self.rain_value()
         await self._correct_position(f"{'Regen' if now else 'Regen vorbei'} ({src} {value or 0:.1f} mm)")
+
+    @callback
+    def _consistency_tick(self, _now: datetime) -> None:
+        self.hass.async_create_task(self._consistency_check())
+
+    async def _consistency_check(self) -> None:
+        """Sicherheitsnetz: Zustand der Luke und interne Lüftung müssen zusammenpassen."""
+        now = dt_util.utcnow()
+        if self._moving() or self._pending or (self._last_pos_change and now - self._last_pos_change < SETTLED_FOR):
+            return
+        open_ = self.is_open()
+        if open_ and self.mode == MODE_IDLE:
+            self._log("KORREKTUR", "Luke offen, aber keine Lüftung bekannt – als Handöffnung übernommen")
+            await self._on_opened(self.position() or 0)
+            self._publish()
+        elif open_ is False and self.mode != MODE_IDLE:
+            self._log("KORREKTUR", "Luke zu, aber Lüftung noch aktiv – Lüftung beendet")
+            await self._finish_vent("korrektur")
+            self._publish()
 
     @callback
     def _bs_tick(self, _now: datetime) -> None:
