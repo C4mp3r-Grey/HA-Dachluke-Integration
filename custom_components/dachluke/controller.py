@@ -10,7 +10,8 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
-from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, State, callback
+from homeassistant.const import EVENT_CALL_SERVICE
+from homeassistant.core import CALLBACK_TYPE, Context, Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.components import persistent_notification
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
@@ -219,6 +220,8 @@ class DachlukeController:
         self._wall_at_open: float | None = None
         self._prediction_at_open: float | None = None
         self._extra_open = ""
+        self._own_contexts: deque[str] = deque(maxlen=50)
+        self._context_names: dict[str, str] = {}
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -250,6 +253,10 @@ class DachlukeController:
             if st:
                 self._button_seen[eid] = st.state
         self._unsubs.append(async_track_state_change_event(self.hass, watched, self._handle_event))
+        # Wer hat die Luke in HA bewegt? Dienstaufrufe und Automationen mitlesen
+        self._unsubs.append(self.hass.bus.async_listen(EVENT_CALL_SERVICE, self._on_service_call))
+        self._unsubs.append(self.hass.bus.async_listen("automation_triggered", self._on_run_started))
+        self._unsubs.append(self.hass.bus.async_listen("script_started", self._on_run_started))
         self._unsubs.append(async_track_time_interval(self.hass, self._sample_reference, REF_INTERVAL))
         self._unsubs.append(async_track_time_interval(self.hass, self._consistency_tick, CHECK_INTERVAL))
         if self.cfg[CONF_BRIGHTSKY]:
@@ -678,13 +685,49 @@ class DachlukeController:
             return "kein Wetter eingetragen – normale Öffnung"
         return f"normales Wetter ({weather or '?'})"
 
+    @callback
+    def _on_run_started(self, event: Event) -> None:
+        kind = "Automation" if event.event_type == "automation_triggered" else "Skript"
+        name = event.data.get("name") or event.data.get("entity_id") or "?"
+        self._context_names[event.context.id] = f"{kind} „{name}“"
+        if len(self._context_names) > 100:
+            self._context_names.pop(next(iter(self._context_names)))
+
+    @callback
+    def _on_service_call(self, event: Event) -> None:
+        data = event.data
+        if data.get("domain") != "cover":
+            return
+        target = (data.get("service_data") or {}).get("entity_id")
+        targets = [target] if isinstance(target, str) else list(target or [])
+        if self.cfg[CONF_COVER] not in targets:
+            return
+        ctx = event.context
+        if ctx.id in self._own_contexts:
+            return
+        service = data.get("service")
+        position = (data.get("service_data") or {}).get("position")
+        role = "close" if service == "close_cover" or (service == "set_cover_position" and position == 0) else "open"
+        if service == "stop_cover":
+            return
+        self.hass.async_create_task(self._remember_service_source(role, ctx))
+
+    async def _remember_service_source(self, role: str, ctx: Context) -> None:
+        name = self._context_names.get(ctx.id) or (self._context_names.get(ctx.parent_id) if ctx.parent_id else None)
+        if not name and ctx.user_id:
+            user = await self.hass.auth.async_get_user(ctx.user_id)
+            name = f"Benutzer {user.name}" if user and user.name else "angemeldeter Benutzer"
+        if not name:
+            name = "Home Assistant (ohne Benutzer)"
+        self._button_at[role] = (dt_util.utcnow(), f"über HA: {name}")
+
     def _manual_source(self, role: str) -> str:
         hit = self._button_at.get(role)
         if hit and dt_util.utcnow() - hit[0] <= BUTTON_WINDOW:
             if isinstance(hit[1], str):
                 return hit[1]
             return "per Fernbedienung" if hit[1] else "per Taste am Gerät"
-        return "ohne erkannten Tastendruck (Dashboard, Alexa, CCU oder Direktverknüpfung)"
+        return "außerhalb von HA (Taste am Gerät, CCU-Programm oder Direktverknüpfung)"
 
     def lights_on(self) -> bool:
         return any(
@@ -1772,8 +1815,10 @@ class DachlukeController:
         self._log("HEIZUNG", f"Heizung zurück auf {temp:.1f} °C")
 
     async def _call(self, domain: str, service: str, data: dict[str, Any]) -> None:
+        context = Context()
+        self._own_contexts.append(context.id)  # eigene Befehle nicht als 'von Hand' werten
         try:
-            await self.hass.services.async_call(domain, service, data, blocking=False)
+            await self.hass.services.async_call(domain, service, data, blocking=False, context=context)
         except Exception:  # noqa: BLE001
             _LOGGER.exception("Aufruf %s.%s fehlgeschlagen", domain, service)
             self._log("FEHLER", f"Aufruf {domain}.{service} fehlgeschlagen")

@@ -71,7 +71,7 @@ async def test_manual_source_detected(hass, freezer):
     assert "per Taste am Gerät" in texts(entry, "HAND_AUF")[0]
     await step(hass, freezer, 5, POS, "0")
     await step(hass, freezer, 5, POS, "40")
-    assert "ohne erkannten Tastendruck" in texts(entry, "HAND_AUF")[1]
+    assert "außerhalb von HA" in texts(entry, "HAND_AUF")[1]
 
 
 async def test_contact_mismatch_only_after_standstill(hass, freezer):
