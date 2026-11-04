@@ -138,13 +138,17 @@
           "dwd_sensor": "DWD-Warnstufe (optional)",
           "brightsky": "DWD-Messwerte der nächsten Station nutzen (Bright Sky)",
           "rain_sensor": "Regensensor (Niederschlag in mm, optional)",
-          "rain_threshold": "Regen ab"
+          "rain_threshold": "Regen ab",
+          "wind_enabled": "Sturmschutz",
+          "wind_gust": "Schließen ab Böen von"
         },
         "data_description": {
           "brightsky": "Temperatur, Feuchte, Taupunkt und Niederschlag der nächstgelegenen DWD-Station über brightsky.dev (frei, ohne Schlüssel). Alle 10 min, bei Ausfall gilt die Wetter-Entität.",
           "rain_sensor": "Z. B. ein DWD-Niederschlagssensor (jetzt bzw. nächste Stunde). Hat Vorrang vor der DWD-Station.",
           "rain_threshold": "Ab diesem Niederschlag wird nur eingeschränkt geöffnet.",
-          "restricted_conditions": "Wird nur genutzt, wenn weder Regensensor noch DWD-Messwerte verfügbar sind. Gesperrtes Wetter (Hagel, Sturm) gilt immer."
+          "restricted_conditions": "Wird nur genutzt, wenn weder Regensensor noch DWD-Messwerte verfügbar sind. Gesperrtes Wetter (Hagel, Sturm) gilt immer.",
+          "wind_enabled": "Bei Böen über der Schwelle wird die Luke geschlossen, auch nach Handöffnung und bei ausgeschalteter Automatik. Danach öffnet die Automatik frühestens nach 30 min ohne Sturm. Quelle: gemessene Böen der DWD-Station (Bright Sky), sonst Böe oder Wind der Wetter-Entität.",
+          "wind_gust": "Richtwert, bitte an deine Luke anpassen. 60 km/h liegt an der Obergrenze von Windstärke 7 (Beaufort)."
         }
       },
       "heating": {
@@ -374,6 +378,32 @@
           "7d": "7 Tage"
         }
       }
+    }
+  },
+  "issues": {
+    "cover_not_closing": {
+      "title": "{name}: Dachluke schließt nicht",
+      "description": "Die Luke steht nach zwei Schließbefehlen noch bei {position} %. Bitte Antrieb, CCU und Funkverbindung prüfen. Der Hinweis verschwindet, sobald der Positionssensor wieder 0 % meldet."
+    },
+    "cover_not_opening": {
+      "title": "{name}: Dachluke öffnet nicht",
+      "description": "Nach einem Öffnungsbefehl hat sich die Luke nicht bewegt. Bitte Antrieb, CCU und Funkverbindung prüfen. Der Hinweis verschwindet beim nächsten erfolgreichen Öffnen."
+    },
+    "humidity_sensor_missing": {
+      "title": "{name}: Feuchtesensor fehlt",
+      "description": "Der Feuchtesensor `{entity}` ist seit mehr als 5 Minuten nicht verfügbar. Ohne ihn erkennt die Integration kein Duschen. Bitte Batterie und Verbindung prüfen."
+    },
+    "position_sensor_missing": {
+      "title": "{name}: Positionssensor fehlt",
+      "description": "Der Positionssensor `{entity}` ist seit mehr als 5 Minuten nicht verfügbar. Die Automatik öffnet so lange nicht. Prüfe in Homematic(IP) Local, ob Kanal 3 LEVEL noch freigeschaltet ist (Unignore Parameters)."
+    },
+    "heating_ineffective": {
+      "title": "{name}: Thermostat übernimmt die Lüft-Temperatur nicht",
+      "description": "Das Thermostat blieb beim Lüften bei {setpoint} °C statt der eingestellten {vent} °C. Vermutlich regelt es über einen verknüpften Fensterkontakt selbst (Fenster-auf-Temperatur). Empfehlung: unter Konfigurieren → Heizung und Frost die Heizungssteuerung ausschalten. Bis zum nächsten Neustart greift die Integration nicht mehr in die Heizung ein."
+    },
+    "brightsky_unavailable": {
+      "title": "{name}: DWD-Messwerte nicht erreichbar",
+      "description": "Bright Sky (brightsky.dev) liefert seit über einer Stunde keine Werte ({reason}). Bis dahin gelten die Werte der Wetter-Entität. Ist der Dienst dauerhaft weg, schalte die DWD-Messwerte unter Konfigurieren → Wetter und Öffnungsweite aus."
     }
   }
 }

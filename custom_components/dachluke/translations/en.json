@@ -105,7 +105,13 @@
           "dwd_sensor": "Dwd sensor",
           "brightsky": "Use DWD measurements of the nearest station (Bright Sky)",
           "rain_sensor": "Rain sensor (precipitation in mm, optional)",
-          "rain_threshold": "Rain from"
+          "rain_threshold": "Rain from",
+          "wind_enabled": "Storm protection",
+          "wind_gust": "Close at gusts of"
+        },
+        "data_description": {
+          "wind_enabled": "Closes the hatch when gusts exceed the threshold, also after manual opening and with automation off. Source: measured gusts from the DWD station (Bright Sky), otherwise the weather entity.",
+          "wind_gust": "Guideline only, adjust to your hatch."
         }
       },
       "heating": {
@@ -325,6 +331,32 @@
           "7d": "7 days"
         }
       }
+    }
+  },
+  "issues": {
+    "cover_not_closing": {
+      "title": "{name}: roof hatch does not close",
+      "description": "After two close commands the hatch is still at {position} %. Please check the motor, the CCU and the radio link. This notice disappears once the position sensor reports 0 % again."
+    },
+    "cover_not_opening": {
+      "title": "{name}: roof hatch does not open",
+      "description": "The hatch did not move after an open command. Please check the motor, the CCU and the radio link. This notice disappears after the next successful opening."
+    },
+    "humidity_sensor_missing": {
+      "title": "{name}: humidity sensor missing",
+      "description": "The humidity sensor `{entity}` has been unavailable for more than 5 minutes. Showers cannot be detected without it."
+    },
+    "position_sensor_missing": {
+      "title": "{name}: position sensor missing",
+      "description": "The position sensor `{entity}` has been unavailable for more than 5 minutes. Automatic opening is blocked meanwhile. Check in Homematic(IP) Local that channel 3 LEVEL is still un-ignored."
+    },
+    "heating_ineffective": {
+      "title": "{name}: thermostat ignores the venting temperature",
+      "description": "While venting, the thermostat stayed at {setpoint} °C instead of {vent} °C, probably because of its own window-open function. Recommendation: disable heating control under Configure → Heating and frost."
+    },
+    "brightsky_unavailable": {
+      "title": "{name}: DWD measurements unavailable",
+      "description": "Bright Sky (brightsky.dev) has not returned data for over an hour ({reason}). The weather entity is used meanwhile."
     }
   }
 }

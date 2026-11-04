@@ -13,6 +13,8 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import CALLBACK_TYPE, Context, Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.components import persistent_notification
+from homeassistant.const import UnitOfSpeed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -22,6 +24,7 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+from homeassistant.util.unit_conversion import SpeedConverter
 
 from . import logic
 from .const import (
@@ -34,6 +37,8 @@ from .const import (
     CONF_BRIGHTSKY,
     CONF_RAIN_SENSOR,
     CONF_RAIN_THRESHOLD,
+    CONF_WIND_ENABLED,
+    CONF_WIND_GUST,
     BRIGHTSKY_URL,
     CONF_BUTTON_CLOSE,
     CONF_BUTTON_OPEN,
@@ -112,6 +117,13 @@ from .const import (
     STATUS_SENSOR,
     STATUS_WEATHER,
     STORAGE_VERSION,
+    ISSUE_BRIGHTSKY,
+    ISSUE_COVER_NOT_CLOSING,
+    ISSUE_COVER_NOT_OPENING,
+    ISSUE_HEATING_INEFFECTIVE,
+    ISSUE_HUMIDITY_MISSING,
+    ISSUE_POSITION_MISSING,
+    ISSUES,
     VERSION,
 )
 
@@ -140,6 +152,8 @@ SETTLED_FOR = timedelta(seconds=90)
 VERIFY_CLOSE = timedelta(seconds=90)
 VERIFY_CLOSE_2 = timedelta(seconds=150)
 RAIN_HOLD = timedelta(minutes=15)
+WIND_HOLD = timedelta(minutes=30)
+BS_ISSUE_AFTER = timedelta(hours=1)
 HEAT_CHECK = timedelta(minutes=3)
 BAD_STATES = (STATE_UNAVAILABLE, STATE_UNKNOWN, "none", "", None)
 
@@ -222,6 +236,10 @@ class DachlukeController:
         self._extra_open = ""
         self._own_contexts: deque[str] = deque(maxlen=50)
         self._context_names: dict[str, str] = {}
+        self._last_storm_at: datetime | None = None
+        self._storm_logged = False
+        self._bs_failed_since: datetime | None = None
+        self.issues: dict[str, dict[str, str]] = {}
 
     # ════════════════════════════════════════════════════════════════════
     # Lebenszyklus
@@ -274,6 +292,9 @@ class DachlukeController:
         self._unsubs.clear()
         for key in list(self._timers):
             self._cancel(key)
+        for key in ISSUES:
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(key))
+        self.issues.clear()
         await self._store.async_save(self._serialize())
 
     async def _restore(self) -> None:
@@ -766,6 +787,101 @@ class DachlukeController:
         r = self.restricted_now()
         return (self.weather_state() in (self.cfg[CONF_RESTRICTED] or [])) if r is None else r
 
+    def wind_gust(self) -> tuple[float | None, str]:
+        """Aktuelle Böe in km/h und Quelle: gemessen an der DWD-Station, sonst Wetter-Entität."""
+        if self.cfg[CONF_BRIGHTSKY] and self._bs_fresh():
+            # Bright Sky liefert Wind in km/h (Standard-Einheiten „dwd“)
+            for key, label in (("wind_gust_speed_10", "Böe 10 min"), ("wind_gust_speed_60", "Böe 60 min"), ("wind_speed_10", "Wind 10 min")):
+                value = self.bs.get(key)
+                if isinstance(value, (int, float)):
+                    return float(value), f"DWD {self._bs_station or '?'}, {label}"
+        st = self._state(self.cfg.get(CONF_WEATHER))
+        if st:
+            unit = st.attributes.get("wind_speed_unit") or UnitOfSpeed.KILOMETERS_PER_HOUR
+            for key, label in (("wind_gust_speed", "Böe"), ("wind_speed", "Wind")):
+                try:
+                    value = float(st.attributes.get(key))
+                    return SpeedConverter.convert(value, unit, UnitOfSpeed.KILOMETERS_PER_HOUR), f"Wetter-Entität, {label}"
+                except Exception:  # noqa: BLE001 – fehlender Wert oder unbekannte Einheit
+                    continue
+        return None, ""
+
+    def storm_now(self) -> bool:
+        """Böe gerade über der Schwelle."""
+        if not self.cfg[CONF_WIND_ENABLED]:
+            return False
+        gust, _ = self.wind_gust()
+        if gust is not None and gust >= float(self.cfg[CONF_WIND_GUST]):
+            self._last_storm_at = dt_util.utcnow()
+            return True
+        return False
+
+    def storm_blocked(self) -> bool:
+        """Sturm jetzt oder vor weniger als 30 min: Automatik öffnet nicht."""
+        if self.storm_now():
+            return True
+        return bool(self.cfg[CONF_WIND_ENABLED] and self._last_storm_at and dt_util.utcnow() - self._last_storm_at < WIND_HOLD)
+
+    async def _check_wind(self) -> None:
+        """Sturmschutz: bei Böen über der Schwelle schließen, auch bei Handöffnung oder Automatik aus."""
+        if not self.cfg[CONF_WIND_ENABLED]:
+            return
+        gust, src = self.wind_gust()
+        storm = self.storm_now()
+        limit = float(self.cfg[CONF_WIND_GUST])
+        if storm and not self._storm_logged:
+            self._log("WETTER", f"Sturmböen {gust:.0f} km/h ({src}) ab {limit:.0f} km/h – Luke bleibt zu")
+        elif not storm and self._storm_logged:
+            self._log("WETTER", f"Wind abgeflaut ({gust if gust is not None else '?'} km/h) – Automatik öffnet frühestens in {WIND_HOLD.seconds // 60} min wieder")
+        self._storm_logged = storm
+        if (
+            storm
+            and self.is_open()
+            and not self._pending_is("close")
+            and "verify_close" not in self._timers
+            and "verify_close_2" not in self._timers
+        ):
+            await self._notify("🌪️ Dachluke geschlossen", f"Sturmböen {gust:.0f} km/h ({src}).", critical=True,
+                               alexa="Sturmböen. Dachluke wird geschlossen.")
+            await self._close("sicherheit", f"Sturmböen {gust:.0f} km/h ({src}) ab {limit:.0f} km/h")
+            self._publish()
+
+    # ── Reparaturhinweise ──────────────────────────────────────────────
+    def _issue_id(self, key: str) -> str:
+        return f"{key}_{self.entry.entry_id}"
+
+    def _issue(self, key: str, active: bool, *, error: bool = False, **placeholders: str) -> None:
+        """Hinweis unter Einstellungen → System → Reparaturen anlegen oder entfernen."""
+        if active:
+            data = {"name": self.entry.title, **placeholders}
+            if self.issues.get(key) == data:
+                return
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                self._issue_id(key),
+                is_fixable=False,
+                severity=ir.IssueSeverity.ERROR if error else ir.IssueSeverity.WARNING,
+                translation_key=key,
+                translation_placeholders=data,
+            )
+            self.issues[key] = data
+        elif key in self.issues:
+            ir.async_delete_issue(self.hass, DOMAIN, self._issue_id(key))
+            del self.issues[key]
+
+    def _update_issues(self) -> None:
+        """Hinweise entfernen, deren Ursache verschwunden ist."""
+        open_ = self.reliable_open()
+        if open_ is False:
+            self._issue(ISSUE_COVER_NOT_CLOSING, False)
+        if open_ is True:
+            self._issue(ISSUE_COVER_NOT_OPENING, False)
+        if self._num(self.cfg[CONF_POSITION_SENSOR]) is not None:
+            self._issue(ISSUE_POSITION_MISSING, False)
+        if self.humidity() is not None:
+            self._issue(ISSUE_HUMIDITY_MISSING, False)
+
     def _bs_fresh(self) -> bool:
         return bool(self.bs) and self.bs_fetched is not None and dt_util.utcnow() - self.bs_fetched < BS_MAX_AGE
 
@@ -836,7 +952,7 @@ class DachlukeController:
             return STATUS_DISABLED
         if self.alarm_active():
             return STATUS_ALARM
-        if self.weather_blocked():
+        if self.weather_blocked() or self.storm_blocked():
             return STATUS_WEATHER
         if self.paused():
             return STATUS_PAUSED
@@ -853,6 +969,9 @@ class DachlukeController:
             reasons.append("Alarm")
         if self.weather_blocked():
             reasons.append("Wetter gesperrt")
+        if self.storm_blocked():
+            gust, _ = self.wind_gust()
+            reasons.append(f"Sturmböen ({gust:.0f} km/h)" if self.storm_now() and gust is not None else "Sturm, Wartezeit")
         if self.position() is None:
             reasons.append("Position unbekannt")
         if self.humidity() is None:
@@ -893,6 +1012,7 @@ class DachlukeController:
                 await self._evaluate_open("licht")
             if eid == cfg.get(CONF_WEATHER):
                 await self._on_weather(old, new)
+                await self._check_wind()
             if eid == cfg.get(CONF_RAIN_SENSOR):
                 await self._check_rain_change()
             if eid == cfg.get(CONF_ALARM):
@@ -1013,6 +1133,13 @@ class DachlukeController:
             await self._notify("🚨 Dachluke", "Öffnung bei Alarm verhindert.", critical=True,
                                alexa="Achtung. Dachluke bei Alarm geöffnet. Sie wird geschlossen.")
             await self._close("sicherheit", "Alarm aktiv", from_manual=True)
+            return
+        if self.storm_now():
+            gust, src = self.wind_gust()
+            self._log("HAND_AUF", f"Von Hand geöffnet {self._manual_source('open')} bei Sturmböen {gust:.0f} km/h ({src}) – wird geschlossen")
+            await self._notify("🌪️ Dachluke", f"Öffnung bei Sturmböen {gust:.0f} km/h verhindert.", critical=True,
+                               alexa="Achtung. Sturmböen. Die Dachluke wird wieder geschlossen.")
+            await self._close("sicherheit", f"Sturmböen {gust:.0f} km/h ({src})", from_manual=True)
             return
         self.mode = MODE_MANUAL
         self.opened_at = now
@@ -1164,7 +1291,9 @@ class DachlukeController:
         """Sicherheitsnetz: Zustand der Luke und interne Lüftung müssen zusammenpassen."""
         now = dt_util.utcnow()
         await self._check_rain_change()  # Regen-Haltezeit läuft ab
+        await self._check_wind()
         await self._check_cold()
+        self._update_issues()
         if self.heating_lowered and self.mode == MODE_IDLE:
             await self._heating_restore()  # Thermostat war beim Schließen nicht erreichbar
         busy = (
@@ -1185,6 +1314,7 @@ class DachlukeController:
         elif open_ is False and self.mode != MODE_IDLE:
             if self.max_pos <= 0:
                 self._log("FEHLER", "Luke hat sich nach dem Öffnungsbefehl nicht bewegt – Lüftung beendet")
+                self._issue(ISSUE_COVER_NOT_OPENING, True, error=True)
                 await self._notify("⚠️ Dachluke", "Die Luke hat sich nicht geöffnet. Bitte CCU und Antrieb prüfen.",
                                    critical=True, alexa="Achtung. Die Dachluke hat sich nicht geöffnet.")
             else:
@@ -1219,6 +1349,7 @@ class DachlukeController:
         if self._reached_closed or self.reliable_open() is not True:
             return
         self._log("FEHLER", f"Luke schließt nicht (steht bei {self.position() or 0:.0f} %) – bitte prüfen")
+        self._issue(ISSUE_COVER_NOT_CLOSING, True, error=True, position=f"{self.position() or 0:.0f}")
         await self._notify("⚠️ Dachluke schließt nicht",
                            f"Die Luke steht nach zwei Schließbefehlen noch bei {self.position() or 0:.0f} %. Bitte prüfen.",
                            critical=True, alexa="Achtung. Die Dachluke schließt nicht.")
@@ -1249,7 +1380,10 @@ class DachlukeController:
         except Exception as err:  # noqa: BLE001 – Netz, JSON, Format: immer auf Wetter-Entität zurückfallen
             if not self._bs_failed:
                 self._log("WETTERQUELLE", f"DWD-Messwerte (Bright Sky) nicht verfügbar ({err}) – nutze Wetter-Entität")
+                self._bs_failed_since = dt_util.utcnow()
             self._bs_failed = True
+            if self._bs_failed_since and dt_util.utcnow() - self._bs_failed_since >= BS_ISSUE_AFTER:
+                self._issue(ISSUE_BRIGHTSKY, True, reason=str(err)[:200] or type(err).__name__)
             self._publish()
             return
         self.bs = weather
@@ -1261,8 +1395,11 @@ class DachlukeController:
                 f"Niederschlag 10 min {weather.get('precipitation_10')} mm",
             )
         self._bs_failed = False
+        self._bs_failed_since = None
+        self._issue(ISSUE_BRIGHTSKY, False)
         self._bs_station = label
         await self._check_rain_change()
+        await self._check_wind()
         self._publish()
 
     async def _on_alarm(self) -> None:
@@ -1627,6 +1764,7 @@ class DachlukeController:
             and not self.paused()
             and not self.alarm_active()
             and not self.weather_blocked()
+            and not self.storm_blocked()
         ):
             target = self.target()
             now = dt_util.utcnow()
@@ -1662,11 +1800,13 @@ class DachlukeController:
     async def _sensor_failed_humidity(self, _now: datetime) -> None:
         self.counters["sensor_failures"] += 1
         self._log("AUSFALL", "Feuchtesensor seit 5 min nicht verfügbar")
+        self._issue(ISSUE_HUMIDITY_MISSING, True, entity=str(self.cfg[CONF_HUMIDITY_SENSOR]))
         await self._notify("⚠️ Dachluke", "Feuchtesensor nicht verfügbar.", critical=True)
 
     async def _sensor_failed_position(self, _now: datetime) -> None:
         self.counters["sensor_failures"] += 1
         self._log("AUSFALL", "Positionssensor seit 5 min nicht verfügbar – Automatik öffnet nicht")
+        self._issue(ISSUE_POSITION_MISSING, True, error=True, entity=str(self.cfg[CONF_POSITION_SENSOR]))
         await self._notify("⚠️ Dachluke", "Positionssensor nicht verfügbar. Automatisches Öffnen gesperrt.", critical=True,
                            alexa="Achtung. Dachluke Positionssensor ausgefallen.")
 
@@ -1756,6 +1896,7 @@ class DachlukeController:
         vent = float(self.cfg[CONF_HEATING_VENT_TEMP])
         if now_set is not None and abs(now_set - vent) > 0.4:
             self.heating_ineffective = True
+            self._issue(ISSUE_HEATING_INEFFECTIVE, True, setpoint=f"{now_set:.1f}", vent=f"{vent:.1f}")
             self.heating_lowered = False  # nichts zurückstellen, sonst würde der eigene Wert überschrieben
             self.saved_setpoint = None
             self._log(

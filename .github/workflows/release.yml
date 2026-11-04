@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  checks:
+    uses: ./.github/workflows/validate.yml
+
+  release:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versionsnummern vergleichen
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest=$(python3 -c "import json; print(json.load(open('custom_components/dachluke/manifest.json'))['version'])")
+          const=$(sed -n 's/^VERSION: Final = "\(.*\)"/\1/p' custom_components/dachluke/const.py)
+          echo "Tag $tag, manifest.json $manifest, const.py $const"
+          if [ "$tag" != "$manifest" ] || [ "$tag" != "$const" ]; then
+            echo "::error::Tag passt nicht zur Version in manifest.json bzw. const.py"
+            exit 1
+          fi
+      - name: Abschnitt aus CHANGELOG.md
+        run: |
+          awk -v v="${GITHUB_REF_NAME#v}" '/^## /{p = ($2 == v); next} p' CHANGELOG.md > notes.md
+          test -s notes.md || echo "Siehe CHANGELOG.md" > notes.md
+          cat notes.md
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag

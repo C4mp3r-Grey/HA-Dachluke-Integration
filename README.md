@@ -79,6 +79,45 @@ Getestete Fehlerfälle (`tests/test_failure_modes.py`, `tests/test_regression_11
 | Tasten-Entität wird nach Neustart wiederhergestellt | gilt nicht als Tastendruck |
 | Regen flattert um die Schwelle | sofort klein, erst nach 15 min ohne Regen wieder weit |
 | Automatik aus und Luke von Hand geöffnet | bleibt offen (kein Zeitlimit), Hagel/Sturm/Alarm schließen trotzdem |
+| Sturmböen über der Schwelle (Standard 60 km/h) | Luke schließt, auch bei Handöffnung und Automatik aus; Automatik öffnet erst 30 min nach der letzten Böe wieder |
+
+## Sturmschutz
+
+Unter *Konfigurieren → Wetter und Öffnungsweite*: **Sturmschutz** (Standard an) und **Schließen ab Böen von** (Standard 60 km/h, ein Richtwert, bitte an deine Luke anpassen).
+
+Quelle der Böen, in dieser Reihenfolge:
+
+1. gemessene Böe der letzten 10 min an der DWD-Station (wenn *DWD-Messwerte* aktiviert sind)
+2. Böe der Wetter-Entität (Attribut `wind_gust_speed`)
+3. mittlerer Wind der Wetter-Entität (`wind_speed`), falls keine Böe geliefert wird
+
+Die Wetter-Entität liefert meist Vorhersage- bzw. Modellwerte, keine Messung. Das Status-Attribut `boeen_quelle` zeigt, welche Quelle gerade gilt.
+
+## Reparaturhinweise und Diagnose
+
+Dauerhafte Probleme erscheinen unter **Einstellungen → System → Reparaturen** und verschwinden von selbst, wenn die Ursache behoben ist:
+
+| Hinweis | Wann |
+|---|---|
+| Dachluke schließt nicht | nach zwei Schließbefehlen noch offen |
+| Dachluke öffnet nicht | Öffnungsbefehl ohne Bewegung |
+| Feuchte- bzw. Positionssensor fehlt | länger als 5 min nicht verfügbar |
+| Thermostat übernimmt die Lüft-Temperatur nicht | eigene Fenster-auf-Funktion des Thermostats erkannt |
+| DWD-Messwerte nicht erreichbar | Bright Sky länger als 1 h ohne Antwort |
+
+**Diagnose herunterladen** (Integrationsseite → ⋮): eine JSON-Datei mit Einstellungen, aktuellem Zustand, den Werten aller Quell-Entitäten, gelernter Referenz, Zählern und dem vollständigen Protokoll. Der Name des Benachrichtigungsdienstes wird geschwärzt. Diese Datei eignet sich am besten, wenn du ein Verhalten auswerten lassen willst.
+
+## Updates und Versionen
+
+Jede Version bekommt ein GitHub-Release (Tag `vX.Y.Z`), das HACS als Update anzeigt. Bei Problemen kannst du in HACS über *Neu herunterladen* eine ältere Version wählen. Was sich geändert hat, steht in [CHANGELOG.md](CHANGELOG.md).
+
+Bei jedem Push prüft GitHub automatisch:
+
+- **Tests** gegen die festgelegte HA-Version (`requirements_test.txt`) und informativ gegen die neueste
+- **hassfest**, die offizielle Prüfung von Home Assistant
+- **HACS-Prüfung**
+
+Ein Release entsteht nur, wenn diese Prüfungen grün sind. Montags laufen die Prüfungen zusätzlich, damit eine neue HA-Version, mit der die Integration nicht mehr läuft, auffällt.
 
 ## Tasten
 
@@ -126,13 +165,17 @@ Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert d
 
 ## Grenzen
 
-- Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.2.3) und automatisierten Abläufen, **nicht an echter Hardware**. Die ersten Tage bitte beobachten.
+- Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.10.4) und automatisierten Abläufen, **nicht an echter Hardware**. Die ersten Tage bitte beobachten.
 - Die Seitenleisten-Seite nutzt die offizielle Schnittstelle für eigene Panels (`panel_custom`). Sie ist kein bearbeitbares Lovelace-Dashboard. Dafür gibt es die erzeugte YAML.
 - Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat.
 
 ## Entwicklung
 
 ```
-pip install pytest-homeassistant-custom-component home-assistant-frontend
-pytest
+python3.14 -m venv .venv && . .venv/bin/activate
+pip install -r requirements_test.txt
+pytest -p no:logging
+
+# Neue Version: Nummer in manifest.json und const.py erhöhen, CHANGELOG.md ergänzen, dann
+git tag v1.15.0 && git push origin v1.15.0
 ```

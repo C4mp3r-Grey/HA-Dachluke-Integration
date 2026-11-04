@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.14.0"
+VERSION: Final = "1.15.0"
 
 # Zeitraum der Dashboard-Diagramme: Schlüssel → (Stunden, Punkte pro Stunde)
 CHART_RANGES: Final = {"6h": (6, 12), "24h": (24, 6), "3d": (72, 2), "7d": (168, 1)}
@@ -63,6 +63,8 @@ CONF_BLOCKED: Final = "blocked_conditions"
 CONF_BRIGHTSKY: Final = "brightsky"
 CONF_RAIN_SENSOR: Final = "rain_sensor"
 CONF_RAIN_THRESHOLD: Final = "rain_threshold"
+CONF_WIND_ENABLED: Final = "wind_enabled"
+CONF_WIND_GUST: Final = "wind_gust"
 BRIGHTSKY_URL: Final = "https://api.brightsky.dev/current_weather"
 
 # ── Heizung / Frost / Nachlüften ───────────────────────────────────────
@@ -173,6 +175,8 @@ DEFAULTS: Final[dict] = {
     CONF_BRIGHTSKY: False,
     CONF_RAIN_SENSOR: None,
     CONF_RAIN_THRESHOLD: 0.1,
+    CONF_WIND_ENABLED: True,
+    CONF_WIND_GUST: 60.0,
     CONF_HEATING_ENABLED: False,
     CONF_CLIMATE: None,
     CONF_HEATING_VENT_TEMP: 15.0,
@@ -249,4 +253,20 @@ COUNTERS: Final = [
     "showers",
     "showers_missed",
     "sensor_failures",
+]
+
+# Reparaturhinweise (Einstellungen → System → Reparaturen)
+ISSUE_COVER_NOT_CLOSING: Final = "cover_not_closing"
+ISSUE_COVER_NOT_OPENING: Final = "cover_not_opening"
+ISSUE_HUMIDITY_MISSING: Final = "humidity_sensor_missing"
+ISSUE_POSITION_MISSING: Final = "position_sensor_missing"
+ISSUE_HEATING_INEFFECTIVE: Final = "heating_ineffective"
+ISSUE_BRIGHTSKY: Final = "brightsky_unavailable"
+ISSUES: Final = [
+    ISSUE_COVER_NOT_CLOSING,
+    ISSUE_COVER_NOT_OPENING,
+    ISSUE_HUMIDITY_MISSING,
+    ISSUE_POSITION_MISSING,
+    ISSUE_HEATING_INEFFECTIVE,
+    ISSUE_BRIGHTSKY,
 ]
