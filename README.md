@@ -176,6 +176,7 @@ python3.14 -m venv .venv && . .venv/bin/activate
 pip install -r requirements_test.txt
 pytest -p no:logging
 
-# Neue Version: Nummer in manifest.json und const.py erhöhen, CHANGELOG.md ergänzen, dann
-git tag v1.15.0 && git push origin v1.15.0
+# Neue Version: Nummer in manifest.json und const.py erhöhen, CHANGELOG.md ergänzen, pushen.
+# Dann auf GitHub: Actions → Release → Run workflow → Versionsnummer eingeben
+# (oder einen Tag vX.Y.Z pushen).
 ```

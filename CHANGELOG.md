@@ -1,6 +1,6 @@
 # Änderungen
 
-Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` erstellt ist. Das macht der Workflow `Release` automatisch, nachdem alle Prüfungen grün sind.
+Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
 ## 1.15.0 – 2026-11-04
 
