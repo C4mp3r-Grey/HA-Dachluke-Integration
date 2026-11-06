@@ -1,6 +1,6 @@
 name: Fehler melden
 description: Die Luke verhält sich anders als erwartet, oder etwas funktioniert nicht.
-labels: ["fehler"]
+labels: ["bug"]
 body:
   - type: markdown
     attributes:

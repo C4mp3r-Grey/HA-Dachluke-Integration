@@ -1,6 +1,6 @@
 name: Idee oder Wunsch
 description: Vorschlag für eine neue Funktion oder andere Hardware
-labels: ["idee"]
+labels: ["enhancement"]
 body:
   - type: textarea
     id: idee

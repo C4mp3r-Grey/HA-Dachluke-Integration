@@ -55,5 +55,3 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Beschreibung und Themen sind nur für den HACS-Standardkatalog nötig
-          ignore: description topics
