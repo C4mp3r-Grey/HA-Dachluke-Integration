@@ -1,6 +1,8 @@
 # Dachluke Badentlüftung
 
-Home-Assistant-Integration für eine motorisierte Dachluke (Homematic IP **HmIP-BROLL**) zur Badentlüftung. Sie ersetzt den Blueprint `dachluke_steuerung.yaml` und bringt drei Dinge in einem Paket:
+🇬🇧 [English version](README.en.md)
+
+Home-Assistant-Integration für eine motorisierte Dachluke oder ein Dachfenster zur Badentlüftung. Entwickelt mit Homematic IP **HmIP-BROLL**, nutzbar mit jedem `cover` in Home Assistant. Sie ersetzt den Blueprint `dachluke_steuerung.yaml` und bringt drei Dinge in einem Paket:
 
 1. **Steuerung**: öffnet nach dem Duschen, schließt wieder, berücksichtigt Wetter, Frost, Heizung, Alarm und Tasten.
 2. **Analyse**: zählt und protokolliert jede Öffnung, jedes Schließen und jede Dusche, auch wenn die Luke dabei nicht geöffnet hat, jeweils mit Grund.
@@ -18,14 +20,22 @@ Alles wird in der Oberfläche eingerichtet. Helfer, Statistik-Sensoren oder YAML
 1. HACS → ⋮ → **Benutzerdefinierte Repositories** → URL dieses Repositorys, Typ **Integration**.
 2. „Dachluke Badentlüftung“ herunterladen und Home Assistant neu starten.
 3. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Dachluke Badentlüftung**.
-4. Cover, Positionssensor (Kanal 3) und Hygrometer wählen, optional Wetter und Lampen.
+4. Cover und Hygrometer wählen, optional Positionssensor, Wetter und Lampen.
 5. Danach unter **Konfigurieren** die weiteren Bereiche einstellen: Heizung, Tasten, Alarm, Benachrichtigungen.
 
 Ohne HACS kopierst du den Ordner `custom_components/dachluke` nach `/config/custom_components/` und startest neu.
 
-### Positionssensor Kanal 3 freischalten
+### Welche Luke? Positionssensor ja oder nein
 
-Homematic(IP) Local → HmIP-BROLL öffnen → **Unignore Parameters** → Kanal 3 → `LEVEL` → Neustart. Die Integration erwartet die Position in **0–100 %**.
+| Antrieb | Positionssensor | Verhalten |
+|---|---|---|
+| Cover mit Positionsangabe (`current_position`), z. B. viele Velux-, Somfy- oder Zigbee-Antriebe | leer lassen | Position kommt vom Cover |
+| Cover nur mit Auf/Zu (ohne Positionssteuerung) | leer lassen | öffnet ganz (`open_cover`), Öffnungsweite und Begrenzung bei Regen entfallen |
+| HmIP-BROLL oder Cover, das nur die Zielposition meldet | eintragen | Position kommt vom separaten Sensor in 0–100 % |
+
+Bei HmIP-BROLL meldet das Cover (Kanal 4) eher den Sollwert. Die echte Position liefert Kanal 3: Homematic(IP) Local → HmIP-BROLL öffnen → **Unignore Parameters** → Kanal 3 → `LEVEL` → Neustart.
+
+Erprobt ist bisher nur HmIP-BROLL mit Positionssensor. Die anderen Varianten sind mit der HA-Testumgebung nachgestellt, aber nicht an echter Hardware geprüft. Rückmeldungen dazu sind besonders willkommen.
 
 ### Zwei Feuchtesensoren (empfohlen)
 
@@ -104,7 +114,7 @@ Dauerhafte Probleme erscheinen unter **Einstellungen → System → Reparaturen*
 |---|---|
 | Dachluke schließt nicht | nach zwei Schließbefehlen noch offen |
 | Dachluke öffnet nicht | Öffnungsbefehl ohne Bewegung |
-| Feuchte- bzw. Positionssensor fehlt | länger als 5 min nicht verfügbar |
+| Feuchtesensor fehlt bzw. Position unbekannt | länger als 5 min nicht verfügbar |
 | Thermostat übernimmt die Lüft-Temperatur nicht | eigene Fenster-auf-Funktion des Thermostats erkannt |
 | DWD-Messwerte nicht erreichbar | Bright Sky länger als 1 h ohne Antwort |
 
@@ -135,7 +145,7 @@ Erkannt werden die Ereignistypen `press_short` und `press_long_release` bzw. `pr
 ## Entitäten
 
 - `sensor.…_status`: Bereit, Lüftet (Automatik/von Hand), Nachlüften, Pause, Deaktiviert, Gesperrt (Alarm/Wetter), Sensor fehlt. Das Attribut `hindernisse_oeffnen` nennt, warum gerade nicht geöffnet würde.
-- `sensor.…_feuchte_anstieg_5_min`, `…_ausgangsfeuchte`, `…_luftung_endet`, `…_dauer_letzte_luftung`, `…_letztes_ereignis`
+- `sensor.…_position_der_luke` (aus Sensor oder Cover), `sensor.…_feuchte_anstieg_5_min`, `…_ausgangsfeuchte`, `…_luftung_endet`, `…_dauer_letzte_luftung`, `…_letztes_ereignis`
 - Zähler (Diagnose): automatisch und von Hand geöffnet; geschlossen wegen Feuchte, Zeit, stagnierender Trocknung, von Hand, Wetter/Alarm; Duschen erkannt; Duschen ohne Öffnen; Sensorausfälle
 - `binary_sensor.…_luke_offen`, `switch.…_automatik`, `switch.…_pause`
 - Tasten: **Jetzt lüften** (öffnet auf die passende Weite, wetter- und alarmbewusst, gilt als Handöffnung), **Lüftung beenden** (schließt mit Pause), **Analyse zurücksetzen**
@@ -168,7 +178,8 @@ Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert d
 
 ## Grenzen
 
-- Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.10.4) und automatisierten Abläufen, **nicht an echter Hardware**. Die ersten Tage bitte beobachten.
+- Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.10.4) und automatisierten Abläufen. Im Alltag erprobt an einer HmIP-BROLL-Luke. Die ersten Tage bitte beobachten.
+- Seitenleiste, Einstellungen und Reparaturhinweise gibt es auf Deutsch und Englisch. Protokoll, Benachrichtigungen und Sprachausgabe sind nur deutsch.
 - Die Seitenleisten-Seite nutzt die offizielle Schnittstelle für eigene Panels (`panel_custom`). Sie ist kein bearbeitbares Lovelace-Dashboard. Dafür gibt es die erzeugte YAML.
 - Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat.
 

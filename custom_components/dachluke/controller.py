@@ -23,6 +23,7 @@ from homeassistant.helpers.event import (
     async_track_time_interval,
 )
 from homeassistant.helpers.storage import Store
+from homeassistant.components.cover import CoverEntityFeature
 from homeassistant.util import dt as dt_util
 from homeassistant.util.unit_conversion import SpeedConverter
 
@@ -255,7 +256,7 @@ class DachlukeController:
                 self.cfg.get(CONF_ROOM_HUMIDITY),
                 self.cfg.get(CONF_ROOM_TEMP),
                 self.cfg.get(CONF_CLIMATE) if self.cfg.get(CONF_ROOM_HUMIDITY) else None,
-                self.cfg[CONF_POSITION_SENSOR],
+                self.pos_entity,
                 self.cfg.get(CONF_WEATHER),
                 self.cfg.get(CONF_RAIN_SENSOR),
                 self.cfg.get(CONF_ALARM),
@@ -440,19 +441,47 @@ class DachlukeController:
         except ValueError:
             return None
 
-    def position(self) -> float | None:
-        pos = self._num(self.cfg[CONF_POSITION_SENSOR])
-        if pos is None:
-            cover = self._state(self.cfg[CONF_COVER])
-            if cover and cover.state not in BAD_STATES:
-                cp = cover.attributes.get("current_position")
-                if cp is not None:
+    @property
+    def pos_entity(self) -> str:
+        """Quelle der Position: eigener Sensor (z. B. HmIP-BROLL Kanal 3), sonst das Cover selbst."""
+        return self.cfg.get(CONF_POSITION_SENSOR) or self.cfg[CONF_COVER]
+
+    @property
+    def has_position_sensor(self) -> bool:
+        return bool(self.cfg.get(CONF_POSITION_SENSOR))
+
+    @staticmethod
+    def _pos_from_state(state: State | None) -> float | None:
+        """Position in % aus einem Sensor oder einem Cover (current_position, sonst offen/zu)."""
+        if state is None or state.state in BAD_STATES:
+            return None
+        if state.domain == "cover":
+            cp = state.attributes.get("current_position")
+            if cp is not None:
+                try:
                     return float(cp)
+                except (TypeError, ValueError):
+                    return None
+            if state.state == "closed":
+                return 0.0
+            if state.state in ("open", "opening", "closing"):
+                return 100.0  # Cover ohne Positionsangabe: nur offen/zu bekannt
+            return None
+        try:
+            return float(state.state)
+        except ValueError:
+            return None
+
+    def position(self) -> float | None:
+        pos = self._pos_from_state(self._state(self.pos_entity))
+        if pos is None and self.has_position_sensor:
+            # Ersatzwert vom Cover, nur für Anzeige und Entscheidungen, nicht fürs Sicherheitsnetz
+            return self._pos_from_state(self._state(self.cfg[CONF_COVER]))
         return pos
 
     def reliable_open(self) -> bool | None:
-        """Nur aus dem Positionssensor (ohne Ersatzwert vom Cover) – für das Sicherheitsnetz."""
-        pos = self._num(self.cfg[CONF_POSITION_SENSOR])
+        """Nur aus der Positionsquelle (ohne Ersatzwert) – für das Sicherheitsnetz."""
+        pos = self._pos_from_state(self._state(self.pos_entity))
         return None if pos is None else pos > 0
 
     def is_open(self) -> bool | None:
@@ -877,7 +906,7 @@ class DachlukeController:
             self._issue(ISSUE_COVER_NOT_CLOSING, False)
         if open_ is True:
             self._issue(ISSUE_COVER_NOT_OPENING, False)
-        if self._num(self.cfg[CONF_POSITION_SENSOR]) is not None:
+        if self._pos_from_state(self._state(self.pos_entity)) is not None:
             self._issue(ISSUE_POSITION_MISSING, False)
         if self.humidity() is not None:
             self._issue(ISSUE_HUMIDITY_MISSING, False)
@@ -1004,7 +1033,7 @@ class DachlukeController:
                 self._record_room(dt_util.utcnow())
                 await self._check_cold()
                 await self._evaluate_close()
-            if eid == cfg[CONF_POSITION_SENSOR]:
+            if eid == self.pos_entity:
                 await self._on_position(old, new)
             if eid in self._buttons():
                 await self._on_button(eid, old, new)
@@ -1102,14 +1131,7 @@ class DachlukeController:
             # Sensor war kurz nicht verfügbar und meldet jetzt "zu"
             await self._on_closed()
 
-    @staticmethod
-    def _parse_pos(state: State | None) -> float | None:
-        if state is None or state.state in BAD_STATES:
-            return None
-        try:
-            return float(state.state)
-        except ValueError:
-            return None
+    _parse_pos = _pos_from_state
 
     def _pending_is(self, kind: str) -> bool:
         pending = self._pending
@@ -1805,8 +1827,8 @@ class DachlukeController:
 
     async def _sensor_failed_position(self, _now: datetime) -> None:
         self.counters["sensor_failures"] += 1
-        self._log("AUSFALL", "Positionssensor seit 5 min nicht verfügbar – Automatik öffnet nicht")
-        self._issue(ISSUE_POSITION_MISSING, True, error=True, entity=str(self.cfg[CONF_POSITION_SENSOR]))
+        self._log("AUSFALL", f"Position der Luke ({self.pos_entity}) seit 5 min nicht verfügbar – Automatik öffnet nicht")
+        self._issue(ISSUE_POSITION_MISSING, True, error=True, entity=self.pos_entity)
         await self._notify("⚠️ Dachluke", "Positionssensor nicht verfügbar. Automatisches Öffnen gesperrt.", critical=True,
                            alexa="Achtung. Dachluke Positionssensor ausgefallen.")
 
@@ -1860,13 +1882,28 @@ class DachlukeController:
     # Aktionen
     # ════════════════════════════════════════════════════════════════════
 
+    def _supports_position(self) -> bool:
+        cover = self._state(self.cfg[CONF_COVER])
+        if cover is None or "supported_features" not in cover.attributes:
+            return True  # unbekannt: Position senden
+        return bool(int(cover.attributes["supported_features"] or 0) & CoverEntityFeature.SET_POSITION)
+
+    async def _cover_to(self, position: int) -> None:
+        """Position anfahren; Covers ohne Positionssteuerung werden nur ganz geöffnet."""
+        if self._supports_position():
+            await self._call("cover", "set_cover_position", {"entity_id": self.cfg[CONF_COVER], "position": int(position)})
+        elif position > 0:
+            await self._call("cover", "open_cover", {"entity_id": self.cfg[CONF_COVER]})
+        else:
+            await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
+
     async def _command_position(self, position: int) -> None:
         self._pending = ("open", dt_util.utcnow() + timedelta(seconds=PENDING_SECONDS))
-        await self._call("cover", "set_cover_position", {"entity_id": self.cfg[CONF_COVER], "position": int(position)})
+        await self._cover_to(int(position))
 
     async def _command_manual_open(self) -> None:
         """Öffnen per Fernbedienung ohne Direktverknüpfung."""
-        await self._call("cover", "set_cover_position", {"entity_id": self.cfg[CONF_COVER], "position": self.target() or int(self.cfg[CONF_POS_RESTRICTED])})
+        await self._cover_to(self.target() or int(self.cfg[CONF_POS_RESTRICTED]))
 
     async def _heating_lower(self) -> None:
         climate = self.cfg.get(CONF_CLIMATE)
@@ -2022,7 +2059,7 @@ class DachlukeController:
         if target <= 0:  # Wetter gesperrt: nur minimal
             target = int(self.cfg[CONF_POS_RESTRICTED])
         self._button_at["open"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Jetzt lüften‘")
-        await self._call("cover", "set_cover_position", {"entity_id": self.cfg[CONF_COVER], "position": target})
+        await self._cover_to(target)
 
     async def async_stop_venting(self) -> None:
         """Taste 'Lüftung beenden': schließt wie von Hand (mit Pause)."""
@@ -2123,7 +2160,7 @@ class DachlukeController:
                 "humidity": self.cfg[CONF_HUMIDITY_SENSOR],
                 "temperature": self.cfg.get(CONF_TEMP_SENSOR),
                 "room_humidity": self.cfg.get(CONF_ROOM_HUMIDITY),
-                "position": self.cfg[CONF_POSITION_SENSOR],
+                "position": self.pos_entity,
                 "cover": self.cfg[CONF_COVER],
                 "lights": self.cfg.get(CONF_LIGHTS) or [],
                 "fan": self.cfg.get(CONF_FAN),

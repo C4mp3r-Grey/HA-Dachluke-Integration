@@ -2,8 +2,12 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
-## 1.15.1 – 2026-11-06
+## 1.16.0 – 2026-11-06
 
+- **Positionssensor optional:** Ohne eigenen Sensor kommt die Position vom Cover (`current_position`, sonst offen/zu). Das Sicherheitsnetz nutzt dann das Cover. Bestehende Einrichtungen mit Sensor (HmIP-BROLL Kanal 3) verhalten sich wie bisher.
+- Covers ohne Positionssteuerung werden mit `open_cover` geöffnet.
+- Neuer Sensor „Position der Luke“. Ohne eigenen Positionssensor nutzen Seitenleiste und Dashboard-Vorlage ihn für den Verlauf.
+- **Englisch:** Seitenleiste und Dashboard-Vorlage folgen der Sprache in Home Assistant (Deutsch, sonst Englisch). Englische Übersetzung der Einstellungen vollständig, englische README (`README.en.md`). Protokoll, Benachrichtigungen und Sprachausgabe bleiben deutsch.
 - Lizenz GPL-3.0, Beta-Hinweis, Datenschutz- und Haftungsabschnitt in der README, Hinweis zur Entstehung mit KI-Unterstützung.
 - Vorlagen für Fehlermeldungen und Ideen auf GitHub (mit Bitte um die Diagnose-Datei).
 - Einstellungstext zu Bright Sky nennt die Übermittlung der gerundeten Koordinaten.

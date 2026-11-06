@@ -129,7 +129,7 @@ BOOL = sel.BooleanSelector()
 # Feld → (Selektor, optional?)  Optionale Felder lassen sich leeren.
 FIELDS: dict[str, tuple[Any, bool]] = {
     CONF_COVER: (_entity("cover"), False),
-    CONF_POSITION_SENSOR: (_entity("sensor"), False),
+    CONF_POSITION_SENSOR: (_entity("sensor"), True),
     CONF_HUMIDITY_SENSOR: (_entity("sensor", device_class="humidity"), False),
     CONF_TEMP_SENSOR: (_entity("sensor", device_class="temperature"), True),
     CONF_ROOM_HUMIDITY: (

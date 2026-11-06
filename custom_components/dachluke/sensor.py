@@ -13,7 +13,8 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import PERCENTAGE, UnitOfTime
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -81,6 +82,12 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
         attrs=lambda c: {"kritische_temperatur": c.wall_humidity()[1]},
     ),
     DachlukeSensorDescription(
+        key="position",
+        native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=0,
+        value=lambda c: c.position(),
+    ),
+    DachlukeSensorDescription(
         key="humidity_baseline",
         native_unit_of_measurement=PERCENTAGE,
         suggested_display_precision=0,
@@ -145,6 +152,19 @@ class DachlukeSensor(DachlukeEntity, SensorEntity):
         if self.entity_description.attrs:
             return self.entity_description.attrs(self.controller)
         return None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self.entity_description.key == "position":
+            self.async_on_remove(
+                async_track_state_change_event(
+                    self.hass, [self.controller.pos_entity, self.controller.cfg["cover"]], self._source_changed
+                )
+            )
+
+    @callback
+    def _source_changed(self, _event) -> None:
+        self.async_write_ha_state()
 
     @property
     def last_reset(self):

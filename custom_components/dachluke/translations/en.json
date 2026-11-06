@@ -5,21 +5,28 @@
         "title": "Set up roof window",
         "data": {
           "name": "Name",
-          "cover": "Roof window (cover)",
-          "position_sensor": "Position sensor (channel 3)",
+          "cover": "Roof hatch (cover entity; for HmIP-BROLL channel 4)",
+          "position_sensor": "Position sensor (optional)",
           "humidity_sensor": "Humidity at the shower (detects showering)",
-          "weather": "Weather",
-          "lights": "Lights",
+          "weather": "Weather entity",
+          "lights": "Bathroom light(s)",
           "require_light": "Only open automatically when a light is on",
           "fan": "Fan",
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
           "room_temperature_sensor": "Room temperature (optional)",
-          "fan_control": "Turn on the fan while the window is open"
+          "fan_control": "Turn on the fan while the hatch is open"
         },
         "description": "More settings are available under Configure afterwards.",
         "data_description": {
-          "fan": "Recorded and, if enabled below, switched while venting."
+          "fan": "Recorded and, if enabled below, switched while venting.",
+          "position_sensor": "Only needed if the cover does not report its position reliably. For HmIP-BROLL: channel 3 (LEVEL in %), un-ignore it in Homematic(IP) Local. Leave empty to use the cover's own position.",
+          "require_light": "Off: open on humidity rise only, also in daylight.",
+          "temperature_sensor": "Without a room sensor, absolute humidity for closing is calculated from this.",
+          "humidity_sensor": "A fast-reacting sensor near the shower. It may saturate (100 %).",
+          "room_humidity_sensor": "E.g. the wall thermostat. If set, room humidity and temperature decide closing, stall detection and second venting; opening and shower end still come from the shower sensor. You can also pick the thermostat (climate) directly, its attribute “current_humidity” is then used.",
+          "room_temperature_sensor": "Leave empty to use the current temperature of the thermostat (heating).",
+          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone."
         }
       }
     },
@@ -51,36 +58,44 @@
       "core": {
         "title": "Devices and sensors",
         "data": {
-          "cover": "Roof window (cover)",
-          "position_sensor": "Position sensor (channel 3)",
+          "cover": "Roof hatch (cover entity; for HmIP-BROLL channel 4)",
+          "position_sensor": "Position sensor (optional)",
           "humidity_sensor": "Humidity at the shower (detects showering)",
-          "weather": "Weather",
-          "lights": "Lights",
+          "weather": "Weather entity",
+          "lights": "Bathroom light(s)",
           "require_light": "Only open automatically when a light is on",
           "fan": "Fan",
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
           "room_temperature_sensor": "Room temperature (optional)",
-          "fan_control": "Turn on the fan while the window is open"
+          "fan_control": "Turn on the fan while the hatch is open"
         },
         "data_description": {
-          "fan": "Recorded and, if enabled below, switched while venting."
-        }
+          "fan": "Recorded and, if enabled below, switched while venting.",
+          "position_sensor": "Only needed if the cover does not report its position reliably. For HmIP-BROLL: channel 3 (LEVEL in %), un-ignore it in Homematic(IP) Local. Leave empty to use the cover's own position.",
+          "require_light": "Off: open on humidity rise only, also in daylight.",
+          "temperature_sensor": "Without a room sensor, absolute humidity for closing is calculated from this.",
+          "humidity_sensor": "A fast-reacting sensor near the shower. It may saturate (100 %).",
+          "room_humidity_sensor": "E.g. the wall thermostat. If set, room humidity and temperature decide closing, stall detection and second venting; opening and shower end still come from the shower sensor. You can also pick the thermostat (climate) directly, its attribute “current_humidity” is then used.",
+          "room_temperature_sensor": "Leave empty to use the current temperature of the thermostat (heating).",
+          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone."
+        },
+        "description": "Which entities control and measure the hatch."
       },
       "venting": {
         "title": "Opening and closing",
         "data": {
           "rise_threshold": "Open at humidity rise",
-          "shower_detect": "Shower detect",
+          "shower_detect": "Count a shower from a rise of (analysis)",
           "close_offset": "Close at baseline humidity plus (without temperature sensor)",
           "close_abs": "Also close below (0 = off)",
-          "min_open": "Min open",
+          "min_open": "Minimum open time",
           "max_open": "Venting after shower end at most",
-          "manual_duration": "Manual duration",
-          "pause_duration": "Pause duration",
-          "dew_enabled": "Dew enabled",
-          "indoor_dew_sensor": "Indoor dew sensor",
-          "dew_offset": "Dew offset",
+          "manual_duration": "Duration of a manual opening",
+          "pause_duration": "Pause after closing manually",
+          "dew_enabled": "Also close by dew point",
+          "indoor_dew_sensor": "Indoor dew point (sensor)",
+          "dew_offset": "Dew point offset",
           "close_ah_offset": "Close at baseline absolute humidity plus",
           "shower_end_drop": "Shower end when humidity drops from peak by",
           "hard_cap": "Maximum total duration",
@@ -88,21 +103,39 @@
           "stall_minutes": "Observation period",
           "stall_delta": "Stalled if humidity drops less than",
           "extend_while_drying": "Keep venting while drying progresses",
-          "cold_protect": "Cooling protection",
+          "cold_protect": "Protection against cooling down",
           "cold_min_temp": "Stop venting below room temperature",
           "mold_factor": "Wall calibration factor (mold risk)",
           "vent_prediction_sensor": "Comparison: predicted venting time (optional)"
+        },
+        "description": "When to open and when to close.",
+        "data_description": {
+          "rise_threshold": "Rise of relative humidity within 5 minutes. The old blueprint used 8.",
+          "shower_detect": "From this rise on, the analysis counts a shower even if the hatch does not open. Choose lower than the opening threshold.",
+          "close_offset": "Only used if no temperature sensor is set.",
+          "close_abs": "Fixed threshold (the old blueprint used 65 %). 0 disables it.",
+          "manual_duration": "A manual opening is only closed after this time, not because of low humidity. If someone showers meanwhile, the automation takes over.",
+          "close_ah_offset": "Closes once absolute humidity is back at the pre-shower value plus this amount. 1 g/m³ is roughly 5 % RH at 21 °C.",
+          "shower_end_drop": "As long as humidity stays at its peak, the shower is assumed to be running and the hatch stays open.",
+          "hard_cap": "Safety limit counted from opening, even if no shower end is detected.",
+          "max_open": "Counted from the detected shower end. Before that the hatch stays open (up to the hard limit).",
+          "stall_enabled": "Only after the shower end. If humidity barely drops during the observation period, further venting is pointless (e.g. humid outdoor air).",
+          "stall_delta": "Closes if relative humidity drops by less than this value during the observation period.",
+          "extend_while_drying": "If the venting time is over but the air is still humid and humidity keeps falling, venting is extended in 5-minute steps, up to the hard limit or until drying stalls.",
+          "cold_protect": "Ends automatic venting when the room gets too cold (room temperature or thermostat reading).",
+          "mold_factor": "As in the HA mold indicator: (T inside − T outside) / (T wall − T outside), measured at the coldest spot (e.g. the hatch reveal) with an infrared thermometer. 1.3 is a rough starting value for insulated walls.",
+          "vent_prediction_sensor": "E.g. the sensor of the HACS integration “Vent Optimization” (minutes). Only logged and compared with the actual duration."
         }
       },
       "weather": {
         "title": "Weather and opening width",
         "data": {
-          "pos_normal": "Pos normal",
-          "pos_restricted": "Pos restricted",
-          "pos_tolerance": "Pos tolerance",
-          "restricted_conditions": "Restricted conditions",
-          "blocked_conditions": "Blocked conditions",
-          "dwd_sensor": "Dwd sensor",
+          "pos_normal": "Opening in normal weather",
+          "pos_restricted": "Opening in restricted weather",
+          "pos_tolerance": "Tolerance for position correction",
+          "restricted_conditions": "Restricted weather (only without rain measurement)",
+          "blocked_conditions": "Blocked weather (closed, no automatic opening)",
+          "dwd_sensor": "DWD warning level (optional)",
           "brightsky": "Use DWD measurements of the nearest station (Bright Sky)",
           "rain_sensor": "Rain sensor (precipitation in mm, optional)",
           "rain_threshold": "Rain from",
@@ -112,58 +145,71 @@
         "data_description": {
           "wind_enabled": "Closes the hatch when gusts exceed the threshold, also after manual opening and with automation off. Source: measured gusts from the DWD station (Bright Sky), otherwise the weather entity.",
           "wind_gust": "Guideline only, adjust to your hatch.",
-          "brightsky": "Temperature, humidity, dew point, precipitation and gusts of the nearest DWD station via brightsky.dev (free third-party service). Sends your coordinates rounded to 2 decimals (about 1 km) every 10 min."
+          "brightsky": "Temperature, humidity, dew point, precipitation and gusts of the nearest DWD station via brightsky.dev (free third-party service). Sends your coordinates rounded to 2 decimals (about 1 km) every 10 min.",
+          "rain_sensor": "E.g. a DWD precipitation sensor (now or next hour). Takes precedence over the DWD station.",
+          "rain_threshold": "From this precipitation on, the hatch only opens to the restricted position.",
+          "restricted_conditions": "Only used if neither a rain sensor nor DWD measurements are available. Blocked weather (hail, storm) always applies."
         }
       },
       "heating": {
         "title": "Heating and frost",
         "data": {
-          "heating_enabled": "Heating enabled",
-          "climate": "Climate",
-          "heating_vent_temp": "Heating vent temp",
-          "heating_restore": "Heating restore",
-          "heating_normal_temp": "Heating normal temp",
-          "frost_enabled": "Frost enabled",
-          "frost_threshold": "Frost threshold",
-          "frost_position": "Frost position",
-          "frost_duration": "Frost duration"
+          "heating_enabled": "Lower heating while venting",
+          "climate": "Thermostat",
+          "heating_vent_temp": "Temperature while venting",
+          "heating_restore": "After venting",
+          "heating_normal_temp": "Fixed temperature after venting",
+          "frost_enabled": "Frost mode",
+          "frost_threshold": "Frost below",
+          "frost_position": "Opening in frost",
+          "frost_duration": "Maximum duration in frost"
+        },
+        "data_description": {
+          "heating_restore": "Previous value restores the setpoint from the moment of opening (the weekly schedule is kept).",
+          "heating_enabled": "Only useful if the thermostat has NO window-open function of its own. Homematic IP thermostats with a linked window contact use their own window-open temperature and ignore this value. The integration detects this and stops interfering."
         }
       },
       "second": {
         "title": "Second venting",
         "data": {
-          "second_enabled": "Second enabled",
-          "second_wait": "Second wait",
-          "second_threshold": "Second threshold",
-          "second_duration": "Second duration",
-          "second_heating": "Second heating"
+          "second_enabled": "Second venting",
+          "second_wait": "Waiting time after closing",
+          "second_threshold": "Only if humidity is still above",
+          "second_duration": "Duration",
+          "second_heating": "Also lower heating"
         }
       },
       "buttons": {
         "title": "Buttons and remote",
         "data": {
-          "button_open": "Button open",
-          "button_close": "Button close",
-          "remote_open": "Remote open",
-          "remote_close": "Remote close"
+          "button_open": "Open button on the device (event entity)",
+          "button_close": "Close button on the device (event entity)",
+          "remote_open": "Remote open (event entity)",
+          "remote_close": "Remote close (event entity)"
+        },
+        "data_description": {
+          "button_open": "Short: end pause. Long: enable automation.",
+          "button_close": "Short: pause. Long: disable automation.",
+          "remote_open": "Like the device button, additionally opens the hatch.",
+          "remote_close": "Like the device button, additionally closes the hatch."
         }
       },
       "safety": {
         "title": "Alarm and window contact",
         "data": {
-          "contact_sensor": "Contact sensor",
-          "contact_grace": "Contact grace",
-          "alarm_entity": "Alarm entity",
-          "alarm_states": "Alarm states"
+          "contact_sensor": "Window contact",
+          "contact_grace": "Delay before comparing contact and position",
+          "alarm_entity": "Alarm entity (e.g. Alarmo)",
+          "alarm_states": "Alarm states that block"
         }
       },
       "notify": {
         "title": "Notifications",
         "data": {
-          "notify_app_service": "Notify app service",
-          "notify_persistent": "Notify persistent",
-          "alexa_entity": "Alexa entity",
-          "alexa_mode": "Alexa mode",
+          "notify_app_service": "App notification (e.g. notify.mobile_app_phone)",
+          "notify_persistent": "Notification in Home Assistant",
+          "alexa_entity": "Alexa (notify entity)",
+          "alexa_mode": "Alexa announces",
           "alexa_volume": "Alexa volume"
         }
       }
@@ -178,28 +224,28 @@
   "selector": {
     "weather_condition": {
       "options": {
-        "rainy": "rainy",
-        "pouring": "pouring",
-        "snowy": "snowy",
-        "snowy-rainy": "snowy-rainy",
-        "lightning": "lightning",
-        "lightning-rainy": "lightning-rainy",
-        "hail": "hail",
-        "windy": "windy",
-        "windy-variant": "windy-variant",
-        "exceptional": "exceptional"
+        "rainy": "Rain",
+        "pouring": "Heavy rain",
+        "snowy": "Snow",
+        "snowy-rainy": "Sleet",
+        "lightning": "Thunderstorm",
+        "lightning-rainy": "Thunderstorm with rain",
+        "hail": "Hail",
+        "windy": "Wind",
+        "windy-variant": "Storm",
+        "exceptional": "Severe weather"
       }
     },
     "alarm_state": {
       "options": {
-        "armed_home": "armed home",
-        "armed_away": "armed away",
-        "armed_night": "armed night",
-        "armed_vacation": "armed vacation",
-        "armed_custom_bypass": "armed custom bypass",
-        "arming": "arming",
-        "pending": "pending",
-        "triggered": "triggered"
+        "armed_home": "Armed (home)",
+        "armed_away": "Armed (away)",
+        "armed_night": "Armed (night)",
+        "armed_vacation": "Armed (vacation)",
+        "armed_custom_bypass": "Armed (custom)",
+        "arming": "Arming",
+        "pending": "Entry delay",
+        "triggered": "Triggered"
       }
     },
     "alexa_mode": {
@@ -256,10 +302,10 @@
         "name": "Last event"
       },
       "count_open_auto": {
-        "name": "Openings automatic"
+        "name": "Opened automatically"
       },
       "count_open_manual": {
-        "name": "Openings manual"
+        "name": "Opened manually"
       },
       "count_close_humidity": {
         "name": "Closed: humidity"
@@ -296,11 +342,14 @@
       },
       "count_close_cold": {
         "name": "Closed: room cooling down"
+      },
+      "position": {
+        "name": "Hatch position"
       }
     },
     "binary_sensor": {
       "open": {
-        "name": "Window open"
+        "name": "Hatch open"
       }
     },
     "switch": {
@@ -348,8 +397,8 @@
       "description": "The humidity sensor `{entity}` has been unavailable for more than 5 minutes. Showers cannot be detected without it."
     },
     "position_sensor_missing": {
-      "title": "{name}: position sensor missing",
-      "description": "The position sensor `{entity}` has been unavailable for more than 5 minutes. Automatic opening is blocked meanwhile. Check in Homematic(IP) Local that channel 3 LEVEL is still un-ignored."
+      "title": "{name}: hatch position unknown",
+      "description": "The position (`{entity}`) has been unavailable for more than 5 minutes. Automatic opening is blocked meanwhile. Check the connection and battery; for HmIP-BROLL also check that channel 3 LEVEL is still un-ignored."
     },
     "heating_ineffective": {
       "title": "{name}: thermostat ignores the venting temperature",

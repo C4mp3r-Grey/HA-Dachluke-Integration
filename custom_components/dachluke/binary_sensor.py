@@ -7,7 +7,6 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from .const import CONF_POSITION_SENSOR
 from .controller import DachlukeController
 from .entity import DachlukeEntity
 
@@ -34,6 +33,6 @@ class DachlukeOpen(DachlukeEntity, BinarySensorEntity):
         await super().async_added_to_hass()
         self.async_on_remove(
             async_track_state_change_event(
-                self.hass, [self.controller.cfg[CONF_POSITION_SENSOR]], self._position_changed
+                self.hass, [self.controller.pos_entity], self._position_changed
             )
         )

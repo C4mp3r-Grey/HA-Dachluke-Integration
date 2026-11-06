@@ -5,8 +5,8 @@
         "title": "Dachluke einrichten",
         "data": {
           "name": "Name",
-          "cover": "Dachluke (Cover-Entität, Kanal 4 des HmIP-BROLL)",
-          "position_sensor": "Positionssensor (Kanal 3, LEVEL in %)",
+          "cover": "Dachluke (Cover-Entität, bei HmIP-BROLL Kanal 4)",
+          "position_sensor": "Positionssensor (optional)",
           "humidity_sensor": "Feuchte an der Dusche (erkennt das Duschen)",
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
@@ -18,7 +18,7 @@
           "fan_control": "Lüfter einschalten, solange die Luke offen ist"
         },
         "data_description": {
-          "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
+          "position_sensor": "Nur nötig, wenn das Cover seine Position nicht zuverlässig meldet. Bei HmIP-BROLL: Kanal 3 (LEVEL in %), in Homematic(IP) Local freischalten über Unignore Parameters → Kanal 3 → LEVEL. Leer lassen: Die Position kommt vom Cover selbst.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
           "fan": "Wird im Protokoll aufgezeichnet und, wenn unten aktiviert, beim Lüften geschaltet.",
           "temperature_sensor": "Ohne Raumsensor wird hieraus die absolute Feuchte für das Schließen berechnet.",
@@ -58,8 +58,8 @@
       "core": {
         "title": "Geräte und Sensoren",
         "data": {
-          "cover": "Dachluke (Cover-Entität, Kanal 4 des HmIP-BROLL)",
-          "position_sensor": "Positionssensor (Kanal 3, LEVEL in %)",
+          "cover": "Dachluke (Cover-Entität, bei HmIP-BROLL Kanal 4)",
+          "position_sensor": "Positionssensor (optional)",
           "humidity_sensor": "Feuchte an der Dusche (erkennt das Duschen)",
           "weather": "Wetter-Entität",
           "lights": "Bad-Lampe(n)",
@@ -71,7 +71,7 @@
           "fan_control": "Lüfter einschalten, solange die Luke offen ist"
         },
         "data_description": {
-          "position_sensor": "Muss in Homematic(IP) Local freigeschaltet sein: Unignore Parameters → Kanal 3 → LEVEL.",
+          "position_sensor": "Nur nötig, wenn das Cover seine Position nicht zuverlässig meldet. Bei HmIP-BROLL: Kanal 3 (LEVEL in %), in Homematic(IP) Local freischalten über Unignore Parameters → Kanal 3 → LEVEL. Leer lassen: Die Position kommt vom Cover selbst.",
           "require_light": "Aus: Öffnen nur nach Feuchte-Anstieg, auch bei Tageslicht.",
           "fan": "Wird im Protokoll aufgezeichnet und, wenn unten aktiviert, beim Lüften geschaltet.",
           "temperature_sensor": "Ohne Raumsensor wird hieraus die absolute Feuchte für das Schließen berechnet.",
@@ -342,6 +342,9 @@
       },
       "count_close_cold": {
         "name": "Geschlossen: Raum kühlt aus"
+      },
+      "position": {
+        "name": "Position der Luke"
       }
     },
     "binary_sensor": {
@@ -394,8 +397,8 @@
       "description": "Der Feuchtesensor `{entity}` ist seit mehr als 5 Minuten nicht verfügbar. Ohne ihn erkennt die Integration kein Duschen. Bitte Batterie und Verbindung prüfen."
     },
     "position_sensor_missing": {
-      "title": "{name}: Positionssensor fehlt",
-      "description": "Der Positionssensor `{entity}` ist seit mehr als 5 Minuten nicht verfügbar. Die Automatik öffnet so lange nicht. Prüfe in Homematic(IP) Local, ob Kanal 3 LEVEL noch freigeschaltet ist (Unignore Parameters)."
+      "title": "{name}: Position der Luke unbekannt",
+      "description": "Die Position (`{entity}`) ist seit mehr als 5 Minuten nicht verfügbar. Die Automatik öffnet so lange nicht. Prüfe Verbindung und Batterie, bei HmIP-BROLL auch, ob Kanal 3 LEVEL noch freigeschaltet ist (Unignore Parameters)."
     },
     "heating_ineffective": {
       "title": "{name}: Thermostat übernimmt die Lüft-Temperatur nicht",
