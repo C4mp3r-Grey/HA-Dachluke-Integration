@@ -1,0 +1,55 @@
+name: Fehler melden
+description: Die Luke verhält sich anders als erwartet, oder etwas funktioniert nicht.
+labels: ["fehler"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke fürs Melden! Am meisten hilft die **Diagnose-Datei**: Einstellungen → Geräte & Dienste → Dachluke Badentlüftung → ⋮ → *Diagnose herunterladen*.
+        Sie enthält Einstellungen, Entity-IDs und das Protokoll. Bitte vor dem Anhängen durchsehen, wenn dir etwas davon zu privat ist.
+  - type: textarea
+    id: was
+    attributes:
+      label: Was ist passiert?
+      description: Mit Uhrzeit, wenn möglich.
+    validations:
+      required: true
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: Was hättest du erwartet?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version der Integration
+      placeholder: z. B. 1.15.0
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Home-Assistant-Version
+      placeholder: z. B. 2026.10.4
+    validations:
+      required: true
+  - type: input
+    id: hardware
+    attributes:
+      label: Luke, Antrieb und Sensoren
+      placeholder: z. B. HmIP-BROLL, Sonoff SNZB-02, HmIP-WTH
+    validations:
+      required: true
+  - type: textarea
+    id: diagnose
+    attributes:
+      label: Diagnose-Datei
+      description: Datei hier hineinziehen.
+  - type: checkboxes
+    id: blueprint
+    attributes:
+      label: Prüfung
+      options:
+        - label: Keine andere Automation oder kein Blueprint steuert dieselbe Luke.
+          required: true

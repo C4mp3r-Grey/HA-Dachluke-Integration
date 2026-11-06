@@ -55,5 +55,5 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # Beschreibung, Themen und Lizenz sind nur für den HACS-Standardkatalog nötig
-          ignore: description topics license
+          # Beschreibung und Themen sind nur für den HACS-Standardkatalog nötig
+          ignore: description topics

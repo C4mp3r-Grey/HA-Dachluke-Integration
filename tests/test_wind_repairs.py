@@ -24,7 +24,7 @@ def _issue(hass, entry, key):
 async def test_storm_blocks_automatic_opening(hass, freezer, aioclient_mock):
     entry, calls = await _setup(hass, freezer, aioclient_mock, payload=_gusty(75))
     c = entry.runtime_data
-    assert c.wind_gust() == (75.0, "DWD Hamburg-Fuhlsbüttel, 8 km, Böe 10 min")
+    assert c.wind_gust() == (75.0, "DWD Musterstadt, 8 km, Böe 10 min")
     assert c.storm_blocked()
     assert any("Sturmböen (75 km/h)" in r for r in c.open_blockers())
     assert c.status == "gesperrt_wetter"

@@ -24,7 +24,7 @@ class DachlukeEntity(Entity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
-            manufacturer="C4mp3r-Grey",
+            manufacturer="Community (HACS)",
             model="Dachluke Badentlüftung",
             entry_type=DeviceEntryType.SERVICE,
         )

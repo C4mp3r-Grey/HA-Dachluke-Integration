@@ -2,6 +2,14 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.15.1 – 2026-11-06
+
+- Lizenz GPL-3.0, Beta-Hinweis, Datenschutz- und Haftungsabschnitt in der README, Hinweis zur Entstehung mit KI-Unterstützung.
+- Vorlagen für Fehlermeldungen und Ideen auf GitHub (mit Bitte um die Diagnose-Datei).
+- Einstellungstext zu Bright Sky nennt die Übermittlung der gerundeten Koordinaten.
+- Mindestversion in `hacs.json` auf HA 2026.2.0 (älteste getestete Version).
+- Gerät zeigt als Hersteller „Community (HACS)“.
+
 ## 1.15.0 – 2026-11-04
 
 - **Sturmschutz:** Bei Böen ab einer einstellbaren Schwelle (Standard 60 km/h) schließt die Luke, auch nach Handöffnung und bei ausgeschalteter Automatik. Eine Handöffnung bei Sturm wird wieder geschlossen. Die Automatik öffnet erst 30 min nach der letzten Böe über der Schwelle wieder. Quelle sind die gemessenen Böen der DWD-Station (Bright Sky), sonst Böe oder Wind der Wetter-Entität (Einheit wird umgerechnet). Einstellbar unter *Wetter und Öffnungsweite*.

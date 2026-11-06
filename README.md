@@ -8,6 +8,9 @@ Home-Assistant-Integration für eine motorisierte Dachluke (Homematic IP **HmIP-
 
 Alles wird in der Oberfläche eingerichtet. Helfer, Statistik-Sensoren oder YAML-Pakete brauchst du nicht mehr.
 
+> [!WARNING]
+> **Beta.** Bisher im Alltag an genau einer Dachluke erprobt (HmIP-BROLL mit Positionssensor). Die Standardwerte sind auf dieses eine Bad abgestimmt. Eine automatisch geöffnete Luke kann bei Regen, Sturm oder Frost Schäden verursachen: Beobachte die ersten Tage, prüfe die Einstellungen und verlass dich nicht blind auf die Automatik. Nutzung auf eigenes Risiko, siehe [Haftung](#lizenz-haftung-und-entstehung).
+
 ---
 
 ## Installation über HACS
@@ -168,6 +171,18 @@ Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert d
 - Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.10.4) und automatisierten Abläufen, **nicht an echter Hardware**. Die ersten Tage bitte beobachten.
 - Die Seitenleisten-Seite nutzt die offizielle Schnittstelle für eigene Panels (`panel_custom`). Sie ist kein bearbeitbares Lovelace-Dashboard. Dafür gibt es die erzeugte YAML.
 - Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat.
+
+## Datenschutz
+
+Die Integration arbeitet lokal. Ausnahme: Sind **DWD-Messwerte (Bright Sky)** eingeschaltet, fragt sie alle 10 min `api.brightsky.dev` ab und übermittelt dabei die auf zwei Nachkommastellen gerundeten Koordinaten deines Home Assistant (Genauigkeit etwa 1 km) sowie wie bei jeder Webanfrage deine IP-Adresse. Bright Sky ist ein freier Dienst eines Drittanbieters und nicht Teil dieses Projekts. Standardmäßig ist die Abfrage aus.
+
+Die Diagnose-Datei enthält deine Einstellungen, Entity-IDs und das Protokoll. Prüfe sie, bevor du sie öffentlich anhängst.
+
+## Lizenz, Haftung und Entstehung
+
+- Lizenz: [GNU GPL v3.0](LICENSE). Du darfst den Code nutzen, ändern und weitergeben. Weitergegebene Änderungen müssen unter derselben Lizenz offen bleiben, gekennzeichnet sein und den ursprünglichen Urhebervermerk behalten.
+- Die Software wird ohne Gewährleistung bereitgestellt, so wie sie ist (siehe Abschnitte 15 und 16 der Lizenz), soweit gesetzlich zulässig.
+- Entwickelt von C4mp3r-Grey mit umfangreicher Unterstützung durch Claude (Anthropic). Fachliche Logik, Anforderungen und Tests im Alltag stammen vom Betreiber der Luke, ein großer Teil des Codes von der KI. Die Commits sind entsprechend gekennzeichnet.
 
 ## Entwicklung
 

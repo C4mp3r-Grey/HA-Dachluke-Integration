@@ -111,7 +111,8 @@
         },
         "data_description": {
           "wind_enabled": "Closes the hatch when gusts exceed the threshold, also after manual opening and with automation off. Source: measured gusts from the DWD station (Bright Sky), otherwise the weather entity.",
-          "wind_gust": "Guideline only, adjust to your hatch."
+          "wind_gust": "Guideline only, adjust to your hatch.",
+          "brightsky": "Temperature, humidity, dew point, precipitation and gusts of the nearest DWD station via brightsky.dev (free third-party service). Sends your coordinates rounded to 2 decimals (about 1 km) every 10 min."
         }
       },
       "heating": {

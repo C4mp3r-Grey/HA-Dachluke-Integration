@@ -14,7 +14,7 @@ def _bs(precip=0.0):
     return {
         "weather": {"source_id": 7, "timestamp": "2026-11-02T20:30:00+00:00", "temperature": 7.5,
                     "relative_humidity": 93, "dew_point": 6.4, "precipitation_10": precip, "condition": "dry"},
-        "sources": [{"id": 7, "station_name": "Hamburg-Fuhlsbüttel", "distance": 8123.0}],
+        "sources": [{"id": 7, "station_name": "Musterstadt", "distance": 8123.0}],
     }
 
 
@@ -40,10 +40,10 @@ async def test_brightsky_values_used(hass, freezer, aioclient_mock):
     entry, calls = await _setup(hass, freezer, aioclient_mock)
     c = entry.runtime_data
     assert c.outdoor_abs_humidity() == logic.absolute_humidity(7.5, 93)
-    assert "DWD Hamburg-Fuhlsbüttel, 8 km" in c.context()
+    assert "DWD Musterstadt, 8 km" in c.context()
     assert c.restricted_now() is False, "Station misst keinen Regen – 'rainy' von Met.no zählt nicht"
     assert c.target() == 80
-    assert any(p["code"] == "WETTERQUELLE" and "Fuhlsbüttel" in p["text"] for p in c.protocol)
+    assert any(p["code"] == "WETTERQUELLE" and "Musterstadt" in p["text"] for p in c.protocol)
 
 
 async def test_brightsky_rain_restricts(hass, freezer, aioclient_mock):
