@@ -139,3 +139,40 @@ async def test_stall_can_be_disabled(hass, freezer):
     await step(hass, freezer, 4)
     assert calls["close"]
     assert counter(hass, "close_timer") == 1
+
+
+async def test_rise_during_venting_is_not_a_missed_shower(hass, freezer):
+    """Protokoll 06.11.: erneuter Anstieg bei offener Luke zählte als 'Dusche ohne Öffnen'."""
+    entry, calls = await _setup(hass, freezer, stall_enabled=False)
+    c = entry.runtime_data
+    await _shower_start(hass, freezer)
+    for v in ("90", "93", "95"):
+        await step(hass, freezer, 2, HUM, v)
+    await step(hass, freezer, 11)  # Prüfung der ersten Dusche
+    await step(hass, freezer, 2, HUM, "90")  # Duschende
+    await step(hass, freezer, 3, HUM, "86")
+    await step(hass, freezer, 3, HUM, "84")
+    await step(hass, freezer, 2, HUM, "92")  # zweite Person, Luke noch offen
+    await step(hass, freezer, 2, HUM, "97")
+    await step(hass, freezer, 11)
+    assert counter(hass, "showers_missed") == 0
+    assert counter(hass, "showers") == 1
+    assert any(p["code"] == "DUSCHE" and "während der Lüftung" in p["text"] for p in c.protocol)
+
+
+async def test_short_pause_keeps_shower_start(hass, freezer):
+    """Wasser kurz aus: geschätzte Duschdauer zählt ab dem ersten Anstieg."""
+    entry, calls = await _setup(hass, freezer, stall_enabled=False)
+    c = entry.runtime_data
+    await _shower_start(hass, freezer)
+    start = c.shower_start
+    for v in ("90", "93", "95"):
+        await step(hass, freezer, 2, HUM, v)
+    await step(hass, freezer, 1, HUM, "91")  # Duschende erkannt
+    assert c.shower_end is not None
+    await step(hass, freezer, 1, HUM, "99")  # nach 1 min wieder steigend
+    assert c.shower_end is None and c.shower_start == start
+    await step(hass, freezer, 4, HUM, "100")
+    await step(hass, freezer, 2, HUM, "95")
+    assert c.last_shower_minutes is not None and c.last_shower_minutes >= 10
+    assert any(p["code"] == "DUSCHE" and "Dusche läuft weiter" in p["text"] for p in c.protocol)

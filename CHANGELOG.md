@@ -2,6 +2,12 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.16.1 – 2026-11-06
+
+- Behoben: Ein erneuter Feuchte-Anstieg bei schon offener Luke wurde als eigene Dusche und als „Dusche ohne Öffnen“ gezählt (Protokoll 06.11., 17:34 und 20:44). Er wird jetzt nur protokolliert.
+- Behoben: Steigt die Feuchte bis 5 min nach dem erkannten Duschende wieder, gilt das als dieselbe Dusche. Die geschätzte Duschdauer zählt ab dem ersten Anstieg statt ab der Unterbrechung (vorher z. B. „ca. 1 min“ statt etwa 8 min).
+- Startmeldung unterscheidet „keine Temperatur eingerichtet“ von „Temperatur noch nicht verfügbar“ (z. B. während die CCU-Integration noch lädt).
+
 ## 1.16.0 – 2026-11-06
 
 - **Positionssensor optional:** Ohne eigenen Sensor kommt die Position vom Cover (`current_position`, sonst offen/zu). Das Sicherheitsnetz nutzt dann das Cover. Bestehende Einrichtungen mit Sensor (HmIP-BROLL Kanal 3) verhalten sich wie bisher.

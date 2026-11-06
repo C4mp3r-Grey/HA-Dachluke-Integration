@@ -138,6 +138,7 @@ MODE_SECOND = "second"
 PENDING_SECONDS = 120
 FAILURE_DELAY = timedelta(minutes=5)
 SHOWER_CHECK = timedelta(minutes=10)
+SHOWER_RESUME = timedelta(minutes=5)  # erneuter Anstieg bis 5 min nach Duschende = gleiche Dusche
 PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
 CONFIRM_DELAY = timedelta(seconds=30)
@@ -384,7 +385,7 @@ class DachlukeController:
             f"Version {VERSION}; Anstieg ab {self.cfg[CONF_RISE_THRESHOLD]} %/5 min, Nachlüften {self.cfg[CONF_MAX_OPEN]} min, "
             f"Licht nötig: {'ja' if self.cfg[CONF_REQUIRE_LIGHT] else 'nein'}, "
             f"Raumsensor: {'ja' if self.cfg.get(CONF_ROOM_HUMIDITY) else 'nein'}, "
-            f"absolute Feuchte: {'ja' if self.room_temperature() is not None else 'nein'}, "
+            f"absolute Feuchte: {self._abs_source_text()}, "
             f"Stagnation: {'ja' if self.cfg[CONF_STALL_ENABLED] else 'nein'}, "
             f"Außenwerte: {'DWD (Bright Sky)' if self.cfg[CONF_BRIGHTSKY] else 'Wetter-Entität'}, "
             f"Regen: {'Sensor' if self.cfg.get(CONF_RAIN_SENSOR) else 'DWD-Station' if self.cfg[CONF_BRIGHTSKY] else 'Wetterzustand'}",
@@ -513,6 +514,17 @@ class DachlukeController:
             except (TypeError, ValueError):
                 return None
         return self._num(eid)
+
+    def _abs_source_text(self) -> str:
+        """Für die Startmeldung: Ist eine Temperaturquelle eingerichtet, und liefert sie schon?"""
+        configured = (
+            bool(self.cfg.get(CONF_ROOM_TEMP) or self.cfg.get(CONF_CLIMATE))
+            if self.has_room
+            else bool(self.cfg.get(CONF_TEMP_SENSOR))
+        )
+        if not configured:
+            return "nein (keine Temperatur eingerichtet)"
+        return "ja" if self.room_temperature() is not None else "ja, Temperatur aber noch nicht verfügbar"
 
     def room_temperature(self) -> float | None:
         if not self.has_room:
@@ -1075,8 +1087,11 @@ class DachlukeController:
 
         # Dusche erkennen (für die Analyse, unabhängig von der Steuerung)
         if self.shower is None and rise >= float(self.cfg[CONF_SHOWER_DETECT]):
-            self.shower = {"start": now, "max_rise": rise, "light": self.lights_on(), "blockers": set()}
-            self.counters["showers"] += 1
+            # Anstieg bei schon laufender Lüftung: keine eigene Dusche, nicht „verpasst“
+            venting = self.mode != MODE_IDLE
+            self.shower = {"start": now, "max_rise": rise, "light": self.lights_on(), "blockers": set(), "venting": venting}
+            if not venting:
+                self.counters["showers"] += 1
             self.last_activity = now
             self._at("shower", now + SHOWER_CHECK, self._shower_check)
         if self.shower is not None:
@@ -1640,12 +1655,16 @@ class DachlukeController:
         threshold = float(self.cfg[CONF_RISE_THRESHOLD])
         drop = float(self.cfg[CONF_SHOWER_END_DROP])
         if self.shower_end is not None and rise >= threshold:
+            # Kurz nach dem Duschende wieder steigend: dieselbe Dusche (z. B. Wasser kurz aus)
+            continued = now - self.shower_end <= SHOWER_RESUME
             self.shower_end = None
             self._cancel("stall")
             self.peak = value
             self.peak_time = now
-            self.shower_start = now
-            self._log("DUSCHE", f"Neuer Feuchte-Anstieg (+{rise:.1f} %/5 min) – Lüftung läuft weiter")
+            if not continued or self.shower_start is None:
+                self.shower_start = now
+            self._log("DUSCHE", f"Feuchte steigt wieder (+{rise:.1f} %/5 min) – "
+                      + ("Dusche läuft weiter" if continued else "neue Dusche") + ", Lüftung läuft weiter")
         if self.peak is None or value > self.peak:
             self.peak = value
         if self.shower_end is None and value >= self.peak - 1:
@@ -1806,6 +1825,9 @@ class DachlukeController:
     async def _shower_check(self, _now: datetime) -> None:
         shower, self.shower = self.shower, None
         if not shower:
+            return
+        if shower.get("venting"):
+            self._log("DUSCHE", f"Weiterer Feuchte-Anstieg während der Lüftung (Steigung max. +{shower['max_rise']:.1f} %/5 min) – nicht als eigene Dusche gezählt")
             return
         opened = self.last_open is not None and self.last_open >= shower["start"] - timedelta(minutes=2)
         if opened:
