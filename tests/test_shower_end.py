@@ -198,3 +198,38 @@ async def test_second_person_counts_and_restarts_hard_cap(hass, freezer):
     assert any(p["code"] == "DUSCHE" and "neue Dusche" in p["text"] for p in c.protocol)
     await step(hass, freezer, 11)
     assert counter(hass, "showers_missed") == 0
+
+
+async def _plateau_after_shower(hass, freezer, **extra):
+    """Protokoll 06./08.11.: nach dem Duschen bleibt die Feuchte deutlich über dem Ziel stehen."""
+    hass.states.async_set(WEATHER, "cloudy", {"temperature": 7, "humidity": 85})
+    entry, calls = await _setup(hass, freezer, temperature_sensor=TEMP, stall_enabled=True, hard_cap=60, **extra)
+    hass.states.async_set(WEATHER, "cloudy", {"temperature": 7, "humidity": 85})
+    await _shower_start(hass, freezer)
+    for v in ("90", "95", "97"):
+        await step(hass, freezer, 2, HUM, v)
+    await step(hass, freezer, 2, HUM, "92")  # Duschende
+    await step(hass, freezer, 2, HUM, "80")
+    await step(hass, freezer, 2, HUM, "76")
+    for _ in range(8):  # 16 min Plateau bei 75 % (≈ 13.7 g/m³ bei 21 °C)
+        await step(hass, freezer, 2, HUM, "75")
+    return entry, calls
+
+
+async def test_plateau_far_above_target_keeps_venting(hass, freezer):
+    entry, calls = await _plateau_after_shower(hass, freezer)
+    c = entry.runtime_data
+    dry, why = c.drier_outside()
+    assert dry, why
+    assert not calls["close"], "Außenluft deutlich trockener: nicht wegen Stagnation schließen"
+    await step(hass, freezer, 10)
+    assert not calls["close"]
+    assert any(p["code"] == "VERLAENGERT" and "Noch zu feucht" in p["text"] for p in c.protocol)
+    await step(hass, freezer, 30)  # harte Obergrenze 60 min greift
+    assert calls["close"] and counter(hass, "close_stall") == 0
+
+
+async def test_plateau_closes_for_stall_when_option_off(hass, freezer):
+    entry, calls = await _plateau_after_shower(hass, freezer, vent_until_dry=False)
+    assert calls["close"]
+    assert counter(hass, "close_stall") == 1

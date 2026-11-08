@@ -52,7 +52,7 @@ Only HmIP-BROLL with a position sensor has been used on real hardware so far. Th
 - **Closing**, after the shower has ended, as soon as one of these applies:
   - humidity is back near the pre-shower value. With a temperature sensor this uses absolute humidity (+1 g/m³), otherwise relative humidity (+3 %).
   - if the room was already more humid than usual: the learned typical room humidity (median of quiet periods over the last 3 days), but never below outdoor absolute humidity + 0.5 g/m³.
-  - drying has stalled (less than 1 % drop in 10 min).
+  - drying has stalled (less than 1 % drop in 10 min), but not while the room is still above the close limit and outdoor air is at least 2 g/m³ drier (can be switched off).
   - the venting time is over (20 min after the shower ended). It extends in 5-minute steps while humidity is still falling.
   - the room gets too cold (below 18 °C).
 - **Manual opening** runs for 15 minutes. If someone showers meanwhile, the automation takes over. With the automation switched off, a manual opening stays open until you close it.

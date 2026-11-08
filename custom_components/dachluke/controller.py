@@ -91,6 +91,7 @@ from .const import (
     CONF_SHOWER_END_DROP,
     CONF_STALL_DELTA,
     CONF_EXTEND,
+    CONF_VENT_UNTIL_DRY,
     CONF_COLD_ENABLED,
     CONF_COLD_MIN,
     CONF_MOLD_FACTOR,
@@ -138,6 +139,7 @@ MODE_SECOND = "second"
 PENDING_SECONDS = 120
 FAILURE_DELAY = timedelta(minutes=5)
 SHOWER_CHECK = timedelta(minutes=10)
+OUTDOOR_DRY_MARGIN = 2.0  # g/m³: Außenluft deutlich trockener → Lüften hilft, auch wenn es langsam geht
 SHOWER_RESUME = timedelta(minutes=5)  # erneuter Anstieg bis 5 min nach Duschende = gleiche Dusche
 PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
@@ -1742,8 +1744,25 @@ class DachlukeController:
             txt += f", Dusche −{max(shower or 0, 0):.1f} %"
         return txt
 
+    def drier_outside(self) -> tuple[bool, str]:
+        """Raum noch über der Schließgrenze und Außenluft deutlich trockener?
+        Dann trocknen Wände und Handtücher nach: Die Feuchte steht, Lüften hilft trotzdem."""
+        if not self.cfg.get(CONF_VENT_UNTIL_DRY):
+            return False, ""
+        room, out = self.abs_humidity(), self.outdoor_abs_humidity()
+        _, t_ah = self.close_targets()
+        if room is None or out is None or t_ah is None:
+            return False, ""
+        limit = t_ah + float(self.cfg[CONF_CLOSE_AH_OFFSET])
+        if room > limit and out + OUTDOOR_DRY_MARGIN <= room:
+            return True, f"Raum {room:.1f} g/m³ über Schließgrenze {limit:.1f}, außen {out:.1f} g/m³"
+        return False, ""
+
     def _stalled(self, now: datetime) -> bool:
-        """Stagnation nur, wenn KEIN Sensor mehr nennenswert fällt."""
+        """Stagnation nur, wenn KEIN Sensor mehr nennenswert fällt – und nicht,
+        solange der Raum feuchter als die Grenze und die Außenluft deutlich trockener ist."""
+        if self.drier_outside()[0]:
+            return False
         delta = float(self.cfg[CONF_STALL_DELTA])
         room, shower = self._drops(now)
         if room is None:
@@ -1781,7 +1800,12 @@ class DachlukeController:
                 self._cap_end(),
             )
             self._set_vent_end(new_end)
-            self._log("VERLAENGERT", f"Noch feucht, Trocknung läuft ({self._drop_text(now)}) – 5 min länger")
+            dry, why = self.drier_outside()
+            room_drop, _ = self._drops(now)
+            if dry and (room_drop is None or room_drop < float(self.cfg[CONF_STALL_DELTA])):
+                self._log("VERLAENGERT", f"Noch zu feucht, Trocknung langsam ({self._drop_text(now)}; {why}) – 5 min länger")
+            else:
+                self._log("VERLAENGERT", f"Noch feucht, Trocknung läuft ({self._drop_text(now)}) – 5 min länger")
             return
         if self.mode == MODE_SECOND:
             await self._close("nachlueften", "Zweites Nachlüften beendet")

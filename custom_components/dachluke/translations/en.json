@@ -106,7 +106,8 @@
           "cold_protect": "Protection against cooling down",
           "cold_min_temp": "Stop venting below room temperature",
           "mold_factor": "Wall calibration factor (mold risk)",
-          "vent_prediction_sensor": "Comparison: predicted venting time (optional)"
+          "vent_prediction_sensor": "Comparison: predicted venting time (optional)",
+          "vent_until_dry": "Vent down to the close limit if outdoor air is drier"
         },
         "description": "When to open and when to close.",
         "data_description": {
@@ -124,7 +125,8 @@
           "extend_while_drying": "If the venting time is over but the air is still humid and humidity keeps falling, venting is extended in 5-minute steps, up to the hard limit or until drying stalls.",
           "cold_protect": "Ends automatic venting when the room gets too cold (room temperature or thermostat reading).",
           "mold_factor": "As in the HA mold indicator: (T inside − T outside) / (T wall − T outside), measured at the coldest spot (e.g. the hatch reveal) with an infrared thermometer. 1.3 is a rough starting value for insulated walls.",
-          "vent_prediction_sensor": "E.g. the sensor of the HACS integration “Vent Optimization” (minutes). Only logged and compared with the actual duration."
+          "vent_prediction_sensor": "E.g. the sensor of the HACS integration “Vent Optimization” (minutes). Only logged and compared with the actual duration.",
+          "vent_until_dry": "If humidity stalls while the room is still above the close limit and outdoor air is at least 2 g/m³ drier, venting is extended instead of closed for stalling (walls and towels are usually still drying). Limited by the hard limit and cold protection. Needs room temperature and outdoor values."
         }
       },
       "weather": {
