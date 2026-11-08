@@ -183,6 +183,7 @@ class DachlukeController:
         self.enabled = True
         self.mode = MODE_IDLE
         self.opened_at: datetime | None = None
+        self.cap_base: datetime | None = None  # Beginn für die harte Obergrenze (neue Dusche setzt neu)
         self.vent_end: datetime | None = None
         self.baseline: float | None = None
         self.baseline_ah: float | None = None
@@ -304,6 +305,7 @@ class DachlukeController:
         self.enabled = data.get("enabled", True)
         self.mode = data.get("mode", MODE_IDLE)
         self.opened_at = _dt(data.get("opened_at"))
+        self.cap_base = _dt(data.get("cap_base"))
         self.vent_end = _dt(data.get("vent_end"))
         self.baseline = data.get("baseline")
         self.baseline_ah = data.get("baseline_ah")
@@ -340,6 +342,7 @@ class DachlukeController:
             "enabled": self.enabled,
             "mode": self.mode,
             "opened_at": _ts(self.opened_at),
+            "cap_base": _ts(self.cap_base),
             "vent_end": _ts(self.vent_end),
             "baseline": self.baseline,
             "baseline_ah": self.baseline_ah,
@@ -1624,6 +1627,7 @@ class DachlukeController:
             self.last_duration = round((now - self.opened_at).total_seconds() / 60, 1)
         self.mode = MODE_IDLE
         self.opened_at = None
+        self.cap_base = None
         self.vent_end = None
         self.blocked_override = False
         self.peak = None
@@ -1642,11 +1646,16 @@ class DachlukeController:
     # Zeitgesteuerte Abläufe
     # ════════════════════════════════════════════════════════════════════
 
+    def _cap_end(self) -> datetime:
+        """Harte Obergrenze: ab Öffnen, bei einer neuen Dusche während der Lüftung ab deren Beginn."""
+        base = max(b for b in (self.opened_at, self.cap_base) if b is not None)
+        return base + timedelta(minutes=float(self.cfg[CONF_HARD_CAP]))
+
     def _vent_end_for(self, now: datetime) -> datetime:
         """Ende der Lüftung: jetzt + maximale Dauer, höchstens bis zur Obergrenze."""
         end = now + timedelta(minutes=self._max_minutes())
         if self.opened_at:
-            end = min(end, self.opened_at + timedelta(minutes=float(self.cfg[CONF_HARD_CAP])))
+            end = min(end, self._cap_end())
         return end
 
     def _track_shower(self, now: datetime, value: float, rise: float) -> None:
@@ -1663,6 +1672,10 @@ class DachlukeController:
             self.peak_time = now
             if not continued or self.shower_start is None:
                 self.shower_start = now
+            if not continued:
+                # zweite Person: eigene Dusche, Obergrenze zählt neu
+                self.counters["showers"] += 1
+                self.cap_base = now
             self._log("DUSCHE", f"Feuchte steigt wieder (+{rise:.1f} %/5 min) – "
                       + ("Dusche läuft weiter" if continued else "neue Dusche") + ", Lüftung läuft weiter")
         if self.peak is None or value > self.peak:
@@ -1749,7 +1762,7 @@ class DachlukeController:
             # Sensoren melden gleichbleibende Werte oft nicht als Änderung.
             # Steht die Feuchte noch am Höchstwert, wird weiter geduscht.
             hum = self.humidity()
-            cap = self.opened_at + timedelta(minutes=float(self.cfg[CONF_HARD_CAP]))
+            cap = self._cap_end()
             drop = float(self.cfg[CONF_SHOWER_END_DROP])
             if hum is not None and self.peak is not None and hum > self.peak - drop and now < cap - timedelta(seconds=30):
                 self._set_vent_end(self._vent_end_for(now))
@@ -1759,13 +1772,13 @@ class DachlukeController:
             and self.shower_end is not None
             and self.opened_at
             and self.cfg[CONF_EXTEND]
-            and now < self.opened_at + timedelta(minutes=float(self.cfg[CONF_HARD_CAP])) - timedelta(minutes=1)
+            and now < self._cap_end() - timedelta(minutes=1)
             and not self._stalled(now)
         ):
             # Noch nicht trocken und es geht voran: weiterlüften (Obergrenze und Stagnation begrenzen)
             new_end = min(
                 now + timedelta(minutes=5),
-                self.opened_at + timedelta(minutes=float(self.cfg[CONF_HARD_CAP])),
+                self._cap_end(),
             )
             self._set_vent_end(new_end)
             self._log("VERLAENGERT", f"Noch feucht, Trocknung läuft ({self._drop_text(now)}) – 5 min länger")

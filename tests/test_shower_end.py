@@ -156,7 +156,8 @@ async def test_rise_during_venting_is_not_a_missed_shower(hass, freezer):
     await step(hass, freezer, 2, HUM, "97")
     await step(hass, freezer, 11)
     assert counter(hass, "showers_missed") == 0
-    assert counter(hass, "showers") == 1
+    # zweite Person mehr als 5 min nach Duschende: eigene Dusche (seit 1.16.2), aber nicht „verpasst“
+    assert counter(hass, "showers") == 2
     assert any(p["code"] == "DUSCHE" and "während der Lüftung" in p["text"] for p in c.protocol)
 
 
@@ -176,3 +177,24 @@ async def test_short_pause_keeps_shower_start(hass, freezer):
     await step(hass, freezer, 2, HUM, "95")
     assert c.last_shower_minutes is not None and c.last_shower_minutes >= 10
     assert any(p["code"] == "DUSCHE" and "Dusche läuft weiter" in p["text"] for p in c.protocol)
+
+
+async def test_second_person_counts_and_restarts_hard_cap(hass, freezer):
+    """Protokoll 08.11.: zweite Dusche 10 min nach der ersten – eigene Dusche, Obergrenze ab ihrem Beginn."""
+    entry, calls = await _setup(hass, freezer, stall_enabled=False, hard_cap=60)
+    c = entry.runtime_data
+    await _shower_start(hass, freezer)
+    opened = c.opened_at
+    for v in ("90", "95", "97"):
+        await step(hass, freezer, 2, HUM, v)
+    await step(hass, freezer, 2, HUM, "92")  # Duschende
+    assert c.shower_end is not None
+    await step(hass, freezer, 4, HUM, "88")
+    await step(hass, freezer, 6, HUM, "86")  # 10 min Pause
+    await step(hass, freezer, 2, HUM, "96")  # zweite Person
+    assert c.shower_end is None
+    assert counter(hass, "showers") == 2
+    assert c._cap_end() > opened + __import__("datetime").timedelta(minutes=60)
+    assert any(p["code"] == "DUSCHE" and "neue Dusche" in p["text"] for p in c.protocol)
+    await step(hass, freezer, 11)
+    assert counter(hass, "showers_missed") == 0

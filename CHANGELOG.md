@@ -2,6 +2,11 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.16.2 – 2026-11-08
+
+- Zweite Dusche während einer laufenden Lüftung (Feuchte steigt mehr als 5 min nach dem Duschende wieder) zählt als eigene Dusche. 1.16.1 hatte sie nicht mehr gezählt.
+- Die harte Obergrenze zählt bei einer solchen zweiten Dusche ab deren Beginn statt ab dem ersten Öffnen (Protokoll 08.11.: nach 60 min geschlossen, 28 min nach Ende der zweiten Dusche).
+
 ## 1.16.1 – 2026-11-06
 
 - Behoben: Ein erneuter Feuchte-Anstieg bei schon offener Luke wurde als eigene Dusche und als „Dusche ohne Öffnen“ gezählt (Protokoll 06.11., 17:34 und 20:44). Er wird jetzt nur protokolliert.
