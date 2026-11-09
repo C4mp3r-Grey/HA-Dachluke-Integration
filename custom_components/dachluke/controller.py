@@ -1107,8 +1107,8 @@ class DachlukeController:
             )
 
         threshold = float(self.cfg[CONF_RISE_THRESHOLD])
-        if self.mode == MODE_MANUAL and rise >= threshold:
-            # Während einer Handöffnung wird geduscht → Automatik übernimmt
+        if self.mode == MODE_MANUAL and rise >= threshold and self.enabled:
+            # Während einer Handöffnung wird geduscht → Automatik übernimmt (nicht, wenn sie ausgeschaltet ist)
             self.mode = MODE_AUTO
             if self.baseline is None:
                 self._set_baselines(now)

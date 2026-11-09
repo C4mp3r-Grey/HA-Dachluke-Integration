@@ -2,6 +2,10 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.17.1 – 2026-11-09
+
+- Behoben: Bei ausgeschalteter Automatik übernahm sie trotzdem eine Handöffnung, sobald während der Öffnung geduscht wurde, und hätte die Luke dann nach Zeitablauf geschlossen (Protokoll 09.11., 07:44). Mit ausgeschalteter Automatik bleibt eine Handöffnung jetzt in jedem Fall ohne Zeitlimit offen.
+
 ## 1.17.0 – 2026-11-08
 
 - **Weiterlüften bei trockener Außenluft** (neue Option, Standard an, unter *Lüften*): Steht die Feuchte nach dem Duschen, obwohl der Raum noch über der Schließgrenze liegt und die Außenluft mindestens 2 g/m³ trockener ist, schließt die Luke nicht mehr wegen „Trocknung stagniert“, sondern lüftet bis zur Schließgrenze, zur harten Obergrenze oder zum Auskühlschutz weiter. Anlass: Protokoll 06.11. 21:10 und 08.11. 17:34, beide Male stand die absolute Feuchte bei gleichbleibender Raumtemperatur deutlich über dem Ziel, danach wurde von Hand wieder geöffnet.
