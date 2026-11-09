@@ -91,8 +91,24 @@ Getestete Fehlerfälle (`tests/test_failure_modes.py`, `tests/test_regression_11
 | Thermostat beim Zurückstellen nicht erreichbar | wird nachgeholt, sobald es wieder da ist |
 | Tasten-Entität wird nach Neustart wiederhergestellt | gilt nicht als Tastendruck |
 | Regen flattert um die Schwelle | sofort klein, erst nach 15 min ohne Regen wieder weit |
-| Automatik aus und Luke von Hand geöffnet | bleibt offen (kein Zeitlimit), Hagel/Sturm/Alarm schließen trotzdem |
+| Automatik aus und Luke von Hand geöffnet | bleibt offen (kein Zeitlimit, auch keine Übernahme beim Duschen), Hagel/Sturm/Alarm schließen trotzdem |
 | Sturmböen über der Schwelle (Standard 60 km/h) | Luke schließt, auch bei Handöffnung und Automatik aus; Automatik öffnet erst 30 min nach der letzten Böe wieder |
+
+## Betriebsart „Wärme sparen“
+
+Für Zeiten, in denen Wärme wichtiger ist als schnelles Trocknen, zum Beispiel bei Heizungsausfall. Umschalten über die Entität *Betriebsart* (von Hand oder per Automation).
+
+| | Normal | Wärme sparen |
+|---|---|---|
+| Während des Duschens | Luke öffnet beim Feuchteanstieg | nur der Lüfter läuft, die Luke bleibt zu |
+| Öffnen | sofort | nach dem Duschende |
+| Öffnungsweite | nach Wetter | 100 % (Stoßlüften); Begrenzung bei Regen und Frost bleibt |
+| Dauer | Nachlüftzeit plus Verlängerungen | höchstens 10 min, keine Verlängerung |
+| Zusätzlich zu | – | sobald der Raum 1 K kälter ist als beim Öffnen |
+| Zweites Nachlüften | wie eingestellt | aus |
+| Handöffnung | eingestellte Dauer | höchstens 10 min |
+
+Sinnvoll nur, wenn der Lüfter einen eigenen Abzug nach draußen hat. Ohne Lüfter bleibt die Luke während des Duschens einfach zu.
 
 ## Sturmschutz
 

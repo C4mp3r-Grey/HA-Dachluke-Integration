@@ -146,7 +146,10 @@ const EN = {
   "Feuchte unbekannt": "Humidity unknown",
   "Licht aus": "Light off",
   "Steigung unter Schwelle": "Rise below threshold",
-  "Alarm": "Alarm"
+  "Alarm": "Alarm",
+  "Betriebsart": "Operating mode",
+  "Wärme sparen": "Save heat",
+  "Lüfter läuft, Luke wartet aufs Duschende": "fan running, hatch waits for the shower to end"
 };
 const t = (s, ...a) => (LANG === "de" ? s : (EN[s] ?? s)).replace(/\{(\d)\}/g, (_, i) => a[i]);
 const COLORS = {
@@ -384,6 +387,7 @@ class DachlukePanel extends HTMLElement {
         <span>${t("Anstieg")} <b>${rise ? rise.state : "–"} %/5 min</b> (${t("öffnet ab {0}", c.settings.rise_threshold)})</span>
         <span>${t("Luke")} <b>${pos ? (isNaN(+pos.state) ? pos.state : Math.round(+pos.state)) : "–"} %</b></span>
         <span>${t("Zielöffnung")} <b>${c.target} %</b></span>
+        ${c.settings.operating_mode === "heat_saving" ? `<span class="pill warn">${t("Wärme sparen")}${c.settings.save_waiting ? " – " + t("Lüfter läuft, Luke wartet aufs Duschende") : ""}</span>` : ""}
       </div>
       ${showBlockers ? `<div class="row"><span class="muted">${t("Öffnet jetzt nicht, weil:")}</span>${blockers.map(b => `<span class="pill ${b !== "Steigung unter Schwelle" ? "warn" : ""}">${t(b.replace(/^Sturmböen \((\d+) km\/h\)$/, "Sturmböen ({0} km/h)"), (b.match(/\d+/) || [""])[0])}</span>`).join("") || `<span class="pill">${t("nichts – öffnet beim nächsten Anstieg")}</span>`}</div>` : ""}`;
     const r = this.shadowRoot;
@@ -451,7 +455,7 @@ class DachlukePanel extends HTMLElement {
       views: [{
         title: t("Dachluke"), path: "dachluke", type: "sections", max_columns: 3,
         sections: [
-          { type: "grid", cards: ids(e.status, e.automatic, e.pause, e.vent_end, s.humidity, e.absolute_humidity, e.humidity_rise).map(id => ({ type: "tile", entity: id })) },
+          { type: "grid", cards: ids(e.status, e.automatic, e.pause, e.operating_mode, e.vent_end, s.humidity, e.absolute_humidity, e.humidity_rise).map(id => ({ type: "tile", entity: id })) },
           { type: "grid", cards: [{ type: "entities", title: t("Analyse"), entities: [
             ...COUNTER_TEXT.filter(([k]) => e[`count_${k}`]).map(([k, label]) => ({ entity: e[`count_${k}`], name: t(label) })),
             ...ids(e.last_duration, e.last_shower_duration, e.reset_counters).map(id => ({ entity: id })),
@@ -562,6 +566,7 @@ class DachlukePanel extends HTMLElement {
       ...(e.stop_venting ? [press(e.stop_venting, t("Lüftung beenden"), "mdi:window-closed-variant", whenOpen)] : []),
       { type: "custom:bubble-card", card_type: "button", button_type: "slider", entity: s.cover, name: t("Öffnung"), icon: "mdi:window-shutter-open", grid_options: { columns: "full" } },
       { type: "custom:bubble-card", card_type: "cover", entity: s.cover, name: t("Dachluke"), grid_options: { columns: "full" } },
+      ...(e.operating_mode ? [{ type: "entities", entities: [{ entity: e.operating_mode, name: t("Betriebsart") }], grid_options: { columns: "full" } }] : []),
       ...(s.fan ? [{ ...toggle(s.fan, t("Lüfter"), "mdi:fan"), grid_options: { columns: 6 } }] : []),
       ...((s.lights || []).slice(0, 1).map(l => ({ ...toggle(l, t("Licht"), "mdi:lightbulb"), grid_options: { columns: 6 } }))),
     ];

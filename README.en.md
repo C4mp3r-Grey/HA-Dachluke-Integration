@@ -72,6 +72,12 @@ Only HmIP-BROLL with a position sensor has been used on real hardware so far. Th
 | Rain flapping around the threshold | immediately small, wide again only after 15 min without rain |
 | Storm gusts above the threshold (default 60 km/h) | closes, also after a manual opening and with the automation off; reopens automatically only 30 min after the last gust |
 
+## Operating mode “Save heat”
+
+For times when warmth matters more than fast drying, e.g. when the heating has failed. Switch it with the *Operating mode* entity, manually or from an automation. While showering, only the fan runs (it needs its own duct to the outside) and the hatch stays closed. After the shower ends, the hatch opens fully for at most 10 minutes. It closes earlier at the target humidity or as soon as the room is 1 K colder than at opening. There are no extensions and no second venting, and manual openings last at most 10 minutes. Rain and frost limits still apply.
+
+With the automation switched **off**, the integration does not intervene at all: a manual opening has no time limit and is not taken over. Only storm, hail and alarm still close the hatch.
+
 ## Storm protection
 
 Under *Configure → Weather and opening width*: **Storm protection** (default on) and **Close at gusts of** (default 60 km/h). This is a guideline only, adjust it to your hatch.

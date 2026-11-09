@@ -47,6 +47,8 @@ SENSORS: tuple[DachlukeSensorDescription, ...] = (
             "heizung_wirkungslos": c.heating_ineffective,
             "heizung_gemerkter_sollwert": c.saved_setpoint,
             "niederschlag": c.rain_value()[0],
+            "betriebsart": c.operating_mode,
+            "wartet_auf_duschende": c._save is not None,
             "boeen": round(g, 1) if (g := c.wind_gust()[0]) is not None else None,
             "boeen_quelle": c.wind_gust()[1] or None,
             "sturmsperre": c.storm_blocked(),

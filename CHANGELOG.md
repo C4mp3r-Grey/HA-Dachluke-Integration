@@ -2,6 +2,12 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.18.0 – 2026-11-09
+
+- **Betriebsart „Wärme sparen“** (neue Auswahl-Entität *Betriebsart*, z. B. bei Heizungsausfall): Beim Duschen läuft nur der Lüfter (eigener Abzug nach draußen), die Luke öffnet erst nach dem Duschende, dann auf 100 % (Stoßlüften; Begrenzung bei Regen und Frost bleibt) für höchstens 10 min. Sie schließt früher bei Zielfeuchte oder sobald der Raum 1 K kälter ist als beim Öffnen. Keine Verlängerung, kein Weiterlüften bei trockener Außenluft, kein zweites Nachlüften, Handöffnung 10 min. Die Betriebsart übersteht Neustarts und lässt sich per Automation umschalten.
+- Status-Attribute `betriebsart` und `wartet_auf_duschende`; Seitenleiste zeigt die Betriebsart, die Dashboard-Vorlage hat einen Wähler.
+- „Automatik aus“ heißt ausdrücklich: Die Integration greift nicht ein (keine Übernahme, kein Zeitlimit), außer bei Sturm, Hagel oder Alarm.
+
 ## 1.17.1 – 2026-11-09
 
 - Behoben: Bei ausgeschalteter Automatik übernahm sie trotzdem eine Handöffnung, sobald während der Öffnung geduscht wurde, und hätte die Luke dann nach Zeitablauf geschlossen (Protokoll 09.11., 07:44). Mit ausgeschalteter Automatik bleibt eine Handöffnung jetzt in jedem Fall ohne Zeitlimit offen.

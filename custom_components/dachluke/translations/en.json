@@ -382,6 +382,13 @@
           "3d": "3 days",
           "7d": "7 days"
         }
+      },
+      "operating_mode": {
+        "name": "Operating mode",
+        "state": {
+          "normal": "Normal",
+          "heat_saving": "Save heat"
+        }
       }
     }
   },

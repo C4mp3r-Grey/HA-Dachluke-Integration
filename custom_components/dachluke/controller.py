@@ -140,6 +140,9 @@ PENDING_SECONDS = 120
 FAILURE_DELAY = timedelta(minutes=5)
 SHOWER_CHECK = timedelta(minutes=10)
 OUTDOOR_DRY_MARGIN = 2.0  # g/m³: Außenluft deutlich trockener → Lüften hilft, auch wenn es langsam geht
+HEAT_SAVE_MINUTES = 10.0  # Wärme sparen: feste Lüftdauer nach dem Duschende
+HEAT_SAVE_DROP = 1.0  # Wärme sparen: zu, sobald der Raum so viel kälter ist als beim Öffnen (K)
+OPERATING_MODES = ["normal", "heat_saving"]
 SHOWER_RESUME = timedelta(minutes=5)  # erneuter Anstieg bis 5 min nach Duschende = gleiche Dusche
 PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
@@ -201,6 +204,10 @@ class DachlukeController:
         self.heating_lowered = False
         self.fan_started = False
         self.chart_range = "24h"
+        self.operating_mode = "normal"
+        self._save: dict[str, Any] | None = None  # Wärme sparen: Dusche läuft, Luke wartet aufs Duschende
+        self._save_ready = False
+        self._temp_at_open: float | None = None
         self.blocked_override = False
         self.last_duration: float | None = None
         self.last_open: datetime | None = None
@@ -332,6 +339,7 @@ class DachlukeController:
         self.heating_lowered = data.get("heating_lowered", False)
         self.fan_started = data.get("fan_started", False)
         self.chart_range = data.get("chart_range", "24h")
+        self.operating_mode = data.get("operating_mode", "normal") if data.get("operating_mode") in OPERATING_MODES else "normal"
         self.blocked_override = data.get("blocked_override", False)
         self.last_duration = data.get("last_duration")
         self.last_open = _dt(data.get("last_open"))
@@ -366,6 +374,7 @@ class DachlukeController:
             "heating_lowered": self.heating_lowered,
             "fan_started": self.fan_started,
             "chart_range": self.chart_range,
+            "operating_mode": self.operating_mode,
             "blocked_override": self.blocked_override,
             "last_duration": self.last_duration,
             "last_shower_minutes": self.last_shower_minutes,
@@ -964,6 +973,13 @@ class DachlukeController:
         return self.pause_until is not None and dt_util.utcnow() < self.pause_until
 
     def target(self) -> int:
+        pos = self._target_weather()
+        # Wärme sparen: kurz und weit (Stoßlüften), Begrenzung bei Regen und Frost bleibt
+        if self.heat_saving and pos == int(self.cfg[CONF_POS_NORMAL]):
+            return 100
+        return pos
+
+    def _target_weather(self) -> int:
         return logic.target_position(
             weather_state=self.weather_state(),
             restricted=self.cfg[CONF_RESTRICTED] or [],
@@ -975,11 +991,18 @@ class DachlukeController:
             restricted_now=self.restricted_now(),
         )
 
+    @property
+    def heat_saving(self) -> bool:
+        return self.operating_mode == "heat_saving"
+
     def _max_minutes(self) -> float:
-        return float(self.cfg[CONF_FROST_DURATION] if self.frost_active() else self.cfg[CONF_MAX_OPEN])
+        minutes = float(self.cfg[CONF_FROST_DURATION] if self.frost_active() else self.cfg[CONF_MAX_OPEN])
+        return min(minutes, HEAT_SAVE_MINUTES) if self.heat_saving else minutes
 
     def _manual_minutes(self) -> float:
         minutes = float(self.cfg[CONF_MANUAL_DURATION])
+        if self.heat_saving:
+            minutes = min(minutes, HEAT_SAVE_MINUTES)
         if self.frost_active():
             minutes = min(minutes, float(self.cfg[CONF_FROST_DURATION]))
         return minutes
@@ -1120,8 +1143,10 @@ class DachlukeController:
             self._log("UEBERNAHME", f"Dusche während Handöffnung erkannt (+{rise:.1f} %/5 min) – Automatik übernimmt")
         elif self.mode == MODE_AUTO and self.opened_at:
             self._track_shower(now, value, rise)
+        elif self.heat_saving and self.mode == MODE_IDLE:
+            await self._heat_save_track(now, value, rise)
 
-        await self._evaluate_open("steigung")
+        await self._evaluate_open("duschende" if self._save_ready else "steigung")
         await self._evaluate_close()
 
     async def _on_position(self, old: State | None, new: State | None) -> None:
@@ -1169,6 +1194,8 @@ class DachlukeController:
             return  # eigene Öffnung, Lüftung läuft bereits
         if self.mode != MODE_IDLE:
             return
+        self._save = None  # Handöffnung ersetzt das Warten aufs Duschende (Wärme sparen)
+        self._save_ready = False
         now = dt_util.utcnow()
         if self.alarm_active():
             self._log("ALARM", "Öffnung bei aktivem Alarm – Luke wird wieder geschlossen")
@@ -1366,7 +1393,7 @@ class DachlukeController:
 
     async def _check_cold(self) -> None:
         """Auskühlschutz: Lüftung beenden, wenn der Raum unter die Mindesttemperatur fällt."""
-        if not self.cfg[CONF_COLD_ENABLED] or self.mode not in (MODE_AUTO, MODE_SECOND) or not self.opened_at:
+        if not (self.cfg[CONF_COLD_ENABLED] or self.heat_saving) or self.mode not in (MODE_AUTO, MODE_SECOND) or not self.opened_at:
             return
         if dt_util.utcnow() - self.opened_at < timedelta(minutes=float(self.cfg[CONF_MIN_OPEN])):
             return
@@ -1374,6 +1401,8 @@ class DachlukeController:
         limit = float(self.cfg[CONF_COLD_MIN])
         if temp is not None and temp < limit:
             await self._close("auskuehlung", f"Raum kühlt aus: {temp:.1f} °C unter {limit:.1f} °C")
+        elif self.heat_saving and temp is not None and self._temp_at_open is not None and temp <= self._temp_at_open - HEAT_SAVE_DROP:
+            await self._close("auskuehlung", f"Wärme sparen: Raum {temp:.1f} °C, {self._temp_at_open - temp:.1f} K kälter als beim Öffnen")
 
     async def _verify_close(self, _now: datetime) -> None:
         """Nach dem Schließbefehl prüfen, ob die Luke wirklich zu ist."""
@@ -1455,10 +1484,47 @@ class DachlukeController:
     # Entscheidungen
     # ════════════════════════════════════════════════════════════════════
 
+    async def _heat_save_track(self, now: datetime, value: float, rise: float) -> None:
+        """Wärme sparen: Während des Duschens nur der Lüfter (eigener Abzug), die Luke öffnet nach dem Duschende."""
+        threshold = float(self.cfg[CONF_RISE_THRESHOLD])
+        if self._save is None:
+            if rise < threshold or self.is_open() is not False or self.open_blockers():
+                return
+            self._set_baselines(now)
+            self._save = {"since": now, "peak": value, "peak_time": now,
+                          "start": logic.rise_start(self.samples, self.shower_baseline)}
+            await self._fan_on("Wärme sparen: Dusche erkannt, Luke öffnet erst nach dem Duschende")
+            self._log("DUSCHE", f"Wärme sparen: Dusche erkannt (+{rise:.1f} %/5 min) – Lüfter an, Luke wartet aufs Duschende; {self.context()}")
+            self._publish()
+            return
+        save = self._save
+        if value >= save["peak"] - 1:
+            save["peak_time"] = now
+        save["peak"] = max(save["peak"], value)
+        ended = value <= save["peak"] - float(self.cfg[CONF_SHOWER_END_DROP]) and rise < threshold
+        timeout = now - save["since"] >= timedelta(minutes=float(self.cfg[CONF_HARD_CAP]))
+        if ended or timeout:
+            self._save_ready = True
+            save["reason"] = "Duschende" if ended else "Obergrenze ohne erkanntes Duschende"
+
+    def _heat_save_cancel(self, why: str) -> None:
+        if self._save is not None:
+            self._log("DUSCHE", f"Wärme sparen: Warten aufs Duschende beendet ({why})")
+            if self.mode == MODE_IDLE:
+                self.hass.async_create_task(self._fan_off())
+        self._save = None
+        self._save_ready = False
+
     async def _evaluate_open(self, trigger: str) -> None:
         if self.mode != MODE_IDLE or self.is_open() is not False:
             return
-        if self.open_blockers():
+        save = self._save if (self.heat_saving and self._save_ready) else None
+        if self.heat_saving and save is None:
+            return  # Wärme sparen: erst nach dem Duschende öffnen
+        ignore = {"Steigung unter Schwelle", "Licht aus"} if save else set()
+        if [b for b in self.open_blockers() if b not in ignore]:
+            if save:
+                self._heat_save_cancel("Öffnen gesperrt: " + ", ".join(b for b in self.open_blockers() if b not in ignore))
             return
         target = self.target()
         if target <= 0:
@@ -1468,11 +1534,23 @@ class DachlukeController:
         self.opened_at = now
         self.last_open = now
         self.blocked_override = False
-        self._set_baselines(now)
-        self.peak = self.humidity()
-        self.peak_time = now
-        self.shower_end = None
-        self.shower_start = logic.rise_start(self.samples, self.shower_baseline)
+        self._temp_at_open = self.room_temperature()
+        if save:
+            # Basiswerte stammen vom Duschbeginn, das Duschende ist schon erkannt
+            self.peak = save["peak"]
+            self.peak_time = save["peak_time"]
+            self.shower_start = save["start"]
+            self.shower_end = now
+            self._estimate_shower()
+            self._save = None
+            self._save_ready = False
+            trigger = f"Wärme sparen, {save['reason']}"
+        else:
+            self._set_baselines(now)
+            self.peak = self.humidity()
+            self.peak_time = now
+            self.shower_end = None
+            self.shower_start = logic.rise_start(self.samples, self.shower_baseline)
         self.max_pos = 0.0
         self.counters["open_auto"] += 1
         self._set_vent_end(now + timedelta(minutes=self._max_minutes()))
@@ -1747,7 +1825,7 @@ class DachlukeController:
     def drier_outside(self) -> tuple[bool, str]:
         """Raum noch über der Schließgrenze und Außenluft deutlich trockener?
         Dann trocknen Wände und Handtücher nach: Die Feuchte steht, Lüften hilft trotzdem."""
-        if not self.cfg.get(CONF_VENT_UNTIL_DRY):
+        if not self.cfg.get(CONF_VENT_UNTIL_DRY) or self.heat_saving:
             return False, ""
         room, out = self.abs_humidity(), self.outdoor_abs_humidity()
         _, t_ah = self.close_targets()
@@ -1791,6 +1869,7 @@ class DachlukeController:
             and self.shower_end is not None
             and self.opened_at
             and self.cfg[CONF_EXTEND]
+            and not self.heat_saving
             and now < self._cap_end() - timedelta(minutes=1)
             and not self._stalled(now)
         ):
@@ -1825,7 +1904,7 @@ class DachlukeController:
         self._log("PAUSE_ENDE", "Pause abgelaufen – Automatik wieder bereit")
 
     def _schedule_second_vent(self) -> None:
-        if not self.cfg[CONF_SECOND_ENABLED]:
+        if not self.cfg[CONF_SECOND_ENABLED] or self.heat_saving:
             return
         self.second_at = dt_util.utcnow() + timedelta(minutes=float(self.cfg[CONF_SECOND_WAIT]))
         self._at("second_wait", self.second_at, self._second_wait_elapsed)
@@ -2002,7 +2081,7 @@ class DachlukeController:
             )
             self._publish()
 
-    async def _fan_on(self) -> None:
+    async def _fan_on(self, why: str = "Luke offen") -> None:
         """Lüfter ergänzt die offene Luke. Lief er schon, bleibt er unangetastet."""
         fan = self.cfg.get(CONF_FAN)
         if not (fan and self.cfg[CONF_FAN_CONTROL]) or self.fan_started:
@@ -2016,7 +2095,7 @@ class DachlukeController:
             return
         await self._call(fan.split(".", 1)[0], "turn_on", {"entity_id": fan})
         self.fan_started = True
-        self._log("LUEFTER", "Lüfter eingeschaltet (Luke offen)")
+        self._log("LUEFTER", f"Lüfter eingeschaltet ({why})")
 
     async def _fan_off(self) -> None:
         """Nur ausschalten, wenn die Integration ihn eingeschaltet hat."""
@@ -2127,6 +2206,25 @@ class DachlukeController:
         self._button_at["close"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Lüftung beenden‘")
         await self._call("cover", "close_cover", {"entity_id": self.cfg[CONF_COVER]})
 
+    async def async_set_operating_mode(self, option: str) -> None:
+        if option not in OPERATING_MODES or option == self.operating_mode:
+            return
+        self.operating_mode = option
+        text = {"normal": "Normal", "heat_saving": "Wärme sparen"}[option]
+        self._log("BETRIEBSART", f"Betriebsart: {text}" + (
+            " – Lüfter beim Duschen, Luke erst nach dem Duschende auf 100 % für höchstens "
+            f"{HEAT_SAVE_MINUTES:.0f} min, zu bei {HEAT_SAVE_DROP:.0f} K Abkühlung, keine Verlängerung, kein zweites Nachlüften"
+            if option == "heat_saving" else ""))
+        if option == "normal":
+            self._heat_save_cancel("Betriebsart Normal")
+        if self.mode != MODE_IDLE and self.opened_at:
+            # laufende Lüftung an die neue Betriebsart anpassen
+            self._set_vent_end(self._vent_end_for(dt_util.utcnow()) if self.mode == MODE_AUTO
+                               else self.opened_at + timedelta(minutes=self._manual_minutes()))
+            if self.heat_saving and self._temp_at_open is None:
+                self._temp_at_open = self.room_temperature()
+        self._publish()
+
     async def async_set_chart_range(self, option: str) -> None:
         self.chart_range = option
         self._publish()
@@ -2227,6 +2325,8 @@ class DachlukeController:
                 "weather": self.cfg.get(CONF_WEATHER),
             },
             "settings": {
+                "operating_mode": self.operating_mode,
+                "save_waiting": self._save is not None,
                 "rise_threshold": self.cfg[CONF_RISE_THRESHOLD],
                 "close_offset": self.cfg[CONF_CLOSE_OFFSET],
                 "close_abs": self.cfg[CONF_CLOSE_ABS],

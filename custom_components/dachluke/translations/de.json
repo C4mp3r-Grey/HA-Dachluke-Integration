@@ -382,6 +382,13 @@
           "3d": "3 Tage",
           "7d": "7 Tage"
         }
+      },
+      "operating_mode": {
+        "name": "Betriebsart",
+        "state": {
+          "normal": "Normal",
+          "heat_saving": "Wärme sparen"
+        }
       }
     }
   },
