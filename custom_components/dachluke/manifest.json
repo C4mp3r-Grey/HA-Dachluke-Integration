@@ -5,6 +5,10 @@
     "logbook",
     "recorder"
   ],
+  "categories": [
+    "climate.fans_ventilation",
+    "blinds_curtains"
+  ],
   "codeowners": [
     "@C4mp3r-Grey"
   ],
