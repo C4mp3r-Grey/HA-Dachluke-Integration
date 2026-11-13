@@ -40,3 +40,29 @@ async def test_no_takeover_when_automation_off(hass, setup, freezer):
     assert not any(p["code"] == "UEBERNAHME" for p in c.protocol)
     await step(hass, freezer, 120)
     assert not calls["close"]
+
+
+async def test_position_bounce_while_closing_is_not_manual_open(hass, setup, freezer):
+    """Protokoll 13.11. 13:49: Nach dem Schließbefehl meldete der BROLL 0 % und dann noch einmal 100 %."""
+    entry, calls = setup
+    c = entry.runtime_data
+    await step(hass, freezer, 0.2, POS, "100")  # Handöffnung
+    assert c.counters["open_manual"] == 1
+    await step(hass, freezer, 15.5)  # Zeitablauf → Schließbefehl
+    assert calls["close"]
+    await step(hass, freezer, 0.05, POS, "0")    # Ziel gemeldet
+    await step(hass, freezer, 0.1, POS, "100")   # alte Position noch einmal
+    await step(hass, freezer, 0.4, POS, "0")     # wirklich zu
+    assert c.counters["open_manual"] == 1
+    assert c.mode == "idle"
+    assert sum(1 for p in c.protocol if p["code"] == "HAND_AUF") == 1
+
+
+async def test_real_reopen_after_close_still_detected(hass, setup, freezer):
+    entry, calls = setup
+    c = entry.runtime_data
+    await step(hass, freezer, 0.2, POS, "100")
+    await step(hass, freezer, 15.5)
+    await step(hass, freezer, 0.5, POS, "0")
+    await step(hass, freezer, 1.5, POS, "100")  # 90 s später wirklich wieder auf
+    assert c.counters["open_manual"] == 2 and c.mode == "manual"

@@ -137,6 +137,7 @@ MODE_MANUAL = "manual"
 MODE_SECOND = "second"
 
 PENDING_SECONDS = 120
+CLOSE_SETTLE = timedelta(seconds=60)  # nach eigenem Schließen: Öffnungsmeldungen sind Nachläufer
 FAILURE_DELAY = timedelta(minutes=5)
 SHOWER_CHECK = timedelta(minutes=10)
 OUTDOOR_DRY_MARGIN = 2.0  # g/m³: Außenluft deutlich trockener → Lüften hilft, auch wenn es langsam geht
@@ -249,6 +250,7 @@ class DachlukeController:
         self._own_contexts: deque[str] = deque(maxlen=50)
         self._context_names: dict[str, str] = {}
         self._last_storm_at: datetime | None = None
+        self._close_settle_until: datetime | None = None
         self._storm_logged = False
         self._bs_failed_since: datetime | None = None
         self.issues: dict[str, dict[str, str]] = {}
@@ -1194,6 +1196,12 @@ class DachlukeController:
             return  # eigene Öffnung, Lüftung läuft bereits
         if self.mode != MODE_IDLE:
             return
+        if self._pending_is("close") or (self._close_settle_until and dt_util.utcnow() < self._close_settle_until):
+            # Eigener Schließbefehl läuft: Der HmIP-BROLL meldet dabei teils erst das Ziel (0 %)
+            # und danach noch einmal die alte Position. Das ist keine Handöffnung (Protokoll 13.11. 13:49).
+            # Wird die Luke wirklich wieder geöffnet, übernimmt das Sicherheitsnetz sie nach wenigen Minuten.
+            _LOGGER.debug("Öffnungsmeldung %s %% während des eigenen Schließens ignoriert", pos)
+            return
         self._save = None  # Handöffnung ersetzt das Warten aufs Duschende (Wärme sparen)
         self._save_ready = False
         now = dt_util.utcnow()
@@ -1264,6 +1272,8 @@ class DachlukeController:
 
     async def _on_closed(self) -> None:
         if self._take_pending("close"):
+            # Noch kurz auf nachlaufende Positionsmeldungen gefasst sein (siehe _on_opened)
+            self._close_settle_until = dt_util.utcnow() + CLOSE_SETTLE
             return
         if self.mode == MODE_IDLE and not self.heating_lowered:
             return

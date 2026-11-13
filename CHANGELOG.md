@@ -2,6 +2,11 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.18.1 – 2026-11-13
+
+- Behoben: Nach einem Schließbefehl der Integration meldete der HmIP-BROLL zuerst 0 % und dann noch einmal die alte Position 100 %. Das wurde als neue Handöffnung „außerhalb von HA“ gewertet (Protokoll 13.11. 13:49). Öffnungsmeldungen bis 60 s nach dem eigenen Schließen gelten jetzt als Nachläufer. Eine echte Wiederöffnung danach wird normal erkannt, innerhalb des Fensters übernimmt das Sicherheitsnetz sie nach wenigen Minuten.
+- Manifest: Kategorien für HA 2026.11 (Lüfter und Lüftung, Jalousien und Vorhänge).
+
 ## 1.18.0 – 2026-11-09
 
 - **Betriebsart „Wärme sparen“** (neue Auswahl-Entität *Betriebsart*, z. B. bei Heizungsausfall): Beim Duschen läuft nur der Lüfter (eigener Abzug nach draußen), die Luke öffnet erst nach dem Duschende, dann auf 100 % (Stoßlüften; Begrenzung bei Regen und Frost bleibt) für höchstens 10 min. Sie schließt früher bei Zielfeuchte oder sobald der Raum 1 K kälter ist als beim Öffnen. Keine Verlängerung, kein Weiterlüften bei trockener Außenluft, kein zweites Nachlüften, Handöffnung 10 min. Die Betriebsart übersteht Neustarts und lässt sich per Automation umschalten.
