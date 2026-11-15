@@ -52,8 +52,14 @@ def humidity_drop(samples: Sequence[Sample], now: datetime, minutes: float) -> f
     return round(past - samples[-1][1], 2)
 
 
-def rise_start(samples: Sequence[Sample], baseline: float | None, margin: float = 1.0) -> datetime | None:
-    """Zeitpunkt, ab dem die Feuchte über den Ausgangswert gestiegen ist (Beginn des Duschens, geschätzt)."""
+def rise_start(
+    samples: Sequence[Sample], baseline: float | None, margin: float = 1.0, min_slope: float = 0.3
+) -> datetime | None:
+    """Zeitpunkt, ab dem die Feuchte über den Ausgangswert gestiegen ist (Beginn des Duschens, geschätzt).
+
+    Langsames Kriechen davor (wenige Zehntel in 5 min) zählt nicht mit: Der Beginn ist der letzte
+    Messwert vor dem steilen Anstieg (ab `min_slope` %/min).
+    """
     if not samples:
         return None
     if baseline is None:
@@ -63,7 +69,15 @@ def rise_start(samples: Sequence[Sample], baseline: float | None, margin: float 
         if samples[i][1] <= baseline + margin:
             start = samples[i + 1][0] if i + 1 < len(samples) else samples[i][0]
             break
-    return start
+    j = len(samples) - 1
+    while j > 0:
+        (t0, v0), (t1, v1) = samples[j - 1], samples[j]
+        minutes = (t1 - t0).total_seconds() / 60
+        if minutes <= 0 or (v1 - v0) / minutes < min_slope:
+            break
+        j -= 1
+    steep = samples[j][0]
+    return max(start, steep)
 
 
 def baseline_humidity(samples: Sequence[Sample], now: datetime, lookback_min: float = 20) -> float | None:

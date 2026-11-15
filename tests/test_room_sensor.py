@@ -157,3 +157,48 @@ async def test_prediction_and_wall_humidity_logged(hass, freezer):
     await step(hass, freezer, 3, ROOM, "60")
     bilanz = [p["text"] for p in c.protocol if p["code"] == "BILANZ"][-1]
     assert "Vorhersage Lüftdauer 18 min, tatsächlich" in bilanz and "Wandfeuchte" in bilanz
+
+
+async def _shower_until_room_near_base(hass, freezer, weather_attrs, **extra):
+    entry, calls = await _setup(hass, freezer, room_max_humidity=55, **extra)
+    hass.states.async_set(WEATHER, "cloudy", weather_attrs)
+    await step(hass, freezer, 3, HUM, "75")
+    await step(hass, freezer, 2, HUM, "95")
+    await step(hass, freezer, 0.2, POS, "80")
+    await step(hass, freezer, 0.2, ROOM, "72")
+    await step(hass, freezer, 3, HUM, "100")
+    await step(hass, freezer, 3, HUM, "90")      # Duschende
+    await step(hass, freezer, 3, HUM, "70")
+    await step(hass, freezer, 3, ROOM, "63")     # nahe Basis, früher hätte das gereicht …
+    await step(hass, freezer, 3, HUM, "67")      # … und Dusche wieder unten
+    return entry, calls
+
+
+async def test_room_max_keeps_venting_until_55(hass, freezer):
+    """Auswertung 15.11.: Raum soll nach dem Duschen auf höchstens 55 % kommen, wenn die Außenluft trocken ist."""
+    entry, calls = await _shower_until_room_near_base(hass, freezer, {"temperature": 7, "humidity": 85})
+    c = entry.runtime_data
+    too, why = c.room_too_humid()
+    assert too, why
+    assert not calls["close"], "Raum 63 % > 55 %, Außenluft trocken: weiterlüften"
+    await step(hass, freezer, 3, ROOM, "58")
+    assert not calls["close"]
+    await step(hass, freezer, 3, ROOM, "55")
+    assert calls["close"] and counter(hass, "close_humidity") == 1
+
+
+async def test_room_max_ignored_when_outdoor_humid(hass, freezer):
+    """Sommer: Außenluft kaum trockener – normale Regeln, schließt bei 63 %."""
+    entry, calls = await _shower_until_room_near_base(hass, freezer, {"temperature": 22, "humidity": 70})
+    assert not entry.runtime_data.room_too_humid()[0]
+    assert calls["close"]
+
+
+def test_rise_start_ignores_slow_creep():
+    """15.11.: 67,1 → 68,4 % in 15 min Kriechen, dann steil – Beginn ist der letzte langsame Messwert."""
+    from datetime import datetime, timedelta, timezone
+    t0 = datetime(2026, 11, 15, 7, 55, tzinfo=timezone.utc)
+    m = lambda minutes: t0 + timedelta(minutes=minutes)  # noqa: E731
+    samples = [(m(0), 67.1), (m(1.7), 67.4), (m(6.7), 67.8), (m(11.7), 68.2), (m(16.7), 68.4),
+               (m(18.1), 69.8), (m(18.6), 78.3), (m(19.1), 82.8)]
+    assert logic.rise_start(samples, 67.1) == m(16.7)

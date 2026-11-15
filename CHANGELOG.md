@@ -2,6 +2,13 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.19.0 – 2026-11-15
+
+Aus der Auswertung von 9 Tagen (09.–15.11.):
+
+- **Neue Option „Raumfeuchte höchstens“** (unter *Lüften*, Standard 0 = aus): Wegen Feuchte schließt die Luke erst, wenn auch der Raumsensor darunter liegt, solange die Außenluft mindestens 2 g/m³ trockener ist. Bis dahin wird nicht wegen Stagnation geschlossen, sondern verlängert, begrenzt durch Obergrenze und Auskühlschutz. Ist die Außenluft nicht trockener (Sommer), gelten die normalen Regeln. Anlass: 6 von 16 Schließvorgängen wegen Feuchte endeten mit gleicher oder höherer absoluter Feuchte als vor dem Duschen, danach wurde mehrfach von Hand nachgelüftet.
+- Geschätzter Duschbeginn („Anstieg seit“) und damit die Duschdauer zählen langsames Kriechen der Feuchte vor dem Duschen nicht mehr mit (15.11.: „21 min“ statt etwa 7).
+
 ## 1.18.1 – 2026-11-13
 
 - Behoben: Nach einem Schließbefehl der Integration meldete der HmIP-BROLL zuerst 0 % und dann noch einmal die alte Position 100 %. Das wurde als neue Handöffnung „außerhalb von HA“ gewertet (Protokoll 13.11. 13:49). Öffnungsmeldungen bis 60 s nach dem eigenen Schließen gelten jetzt als Nachläufer. Eine echte Wiederöffnung danach wird normal erkannt, innerhalb des Fensters übernimmt das Sicherheitsnetz sie nach wenigen Minuten.

@@ -92,6 +92,7 @@ from .const import (
     CONF_STALL_DELTA,
     CONF_EXTEND,
     CONF_VENT_UNTIL_DRY,
+    CONF_ROOM_MAX,
     CONF_COLD_ENABLED,
     CONF_COLD_MIN,
     CONF_MOLD_FACTOR,
@@ -1620,6 +1621,8 @@ class DachlukeController:
             dry, dry_text = self.shower_dry()
             if not dry:
                 return  # Raum schon ok, aber über der Dusche steht noch feuchte Luft
+            if self.room_too_humid()[0]:
+                return  # Raum noch über „Raumfeuchte höchstens“, Außenluft hilft noch
             if reason == "absolut":
                 text = (
                     f"Absolute Feuchte {self.abs_humidity() or 0:.1f} g/m³ wieder nahe Bezugswert {target_ah or 0:.1f} g/m³ "
@@ -1832,9 +1835,25 @@ class DachlukeController:
             txt += f", Dusche −{max(shower or 0, 0):.1f} %"
         return txt
 
+    def room_too_humid(self) -> tuple[bool, str]:
+        """Raum über „Raumfeuchte höchstens“, und die Außenluft kann noch trocknen?
+        Ist die Außenluft nicht deutlich trockener (z. B. im Sommer), gelten die normalen Regeln."""
+        limit = float(self.cfg.get(CONF_ROOM_MAX) or 0)
+        if limit <= 0 or self.heat_saving:
+            return False, ""
+        rh, room, out = self.room_humidity(), self.abs_humidity(), self.outdoor_abs_humidity()
+        if rh is None or rh <= limit:
+            return False, ""
+        if room is None or out is None or out + OUTDOOR_DRY_MARGIN > room:
+            return False, ""
+        return True, f"Raum {rh:.0f} % über {limit:.0f} %, außen {out:.1f} g/m³"
+
     def drier_outside(self) -> tuple[bool, str]:
-        """Raum noch über der Schließgrenze und Außenluft deutlich trockener?
+        """Raum noch über der Schließgrenze (oder über „Raumfeuchte höchstens“) und Außenluft deutlich trockener?
         Dann trocknen Wände und Handtücher nach: Die Feuchte steht, Lüften hilft trotzdem."""
+        too, why = self.room_too_humid()
+        if too:
+            return True, why
         if not self.cfg.get(CONF_VENT_UNTIL_DRY) or self.heat_saving:
             return False, ""
         room, out = self.abs_humidity(), self.outdoor_abs_humidity()

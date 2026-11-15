@@ -9,7 +9,7 @@ PANEL_URL: Final = "dachluke"
 STATIC_URL: Final = "/dachluke_files"
 PANEL_ELEMENT: Final = "dachluke-panel"
 STORAGE_VERSION: Final = 1
-VERSION: Final = "1.18.1"
+VERSION: Final = "1.19.0"
 
 # Zeitraum der Dashboard-Diagramme: Schlüssel → (Stunden, Punkte pro Stunde)
 CHART_RANGES: Final = {"6h": (6, 12), "24h": (24, 6), "3d": (72, 2), "7d": (168, 1)}
@@ -43,6 +43,7 @@ CONF_STALL_MINUTES: Final = "stall_minutes"
 CONF_STALL_DELTA: Final = "stall_delta"
 CONF_EXTEND: Final = "extend_while_drying"
 CONF_VENT_UNTIL_DRY: Final = "vent_until_dry"
+CONF_ROOM_MAX: Final = "room_max_humidity"
 CONF_COLD_ENABLED: Final = "cold_protect"
 CONF_COLD_MIN: Final = "cold_min_temp"
 CONF_MOLD_FACTOR: Final = "mold_factor"
@@ -151,6 +152,7 @@ DEFAULTS: Final[dict] = {
     CONF_STALL_DELTA: 1.0,
     CONF_EXTEND: True,
     CONF_VENT_UNTIL_DRY: True,
+    CONF_ROOM_MAX: 0.0,
     CONF_COLD_ENABLED: True,
     CONF_COLD_MIN: 18.0,
     CONF_MOLD_FACTOR: 1.3,
