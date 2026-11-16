@@ -150,6 +150,7 @@ PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
 CONFIRM_DELAY = timedelta(seconds=30)
 BUTTON_WINDOW = timedelta(seconds=90)
+VENT_NOW_SOURCE = "per Dashboard-Taste ‚Jetzt lüften‘"
 REF_INTERVAL = timedelta(minutes=15)
 REF_QUIET = timedelta(hours=2)
 REF_KEEP = timedelta(days=3)
@@ -230,6 +231,7 @@ class DachlukeController:
         self._pending: tuple[str, datetime] | None = None
         self._button_seen: dict[str, str] = {}
         self._button_at: dict[str, tuple[datetime, bool | str]] = {}
+        self.until_dry = False  # Handöffnung per „Jetzt lüften“: lüftet bis der Raum trocken ist
         self._settled_pos: float | None = None
         self._move_start: datetime | None = None
         self._last_pos_change: datetime | None = None
@@ -328,6 +330,7 @@ class DachlukeController:
         self.shower_end = _dt(data.get("shower_end"))
         self.shower_start = _dt(data.get("shower_start"))
         self.peak_time = _dt(data.get("peak_time"))
+        self.until_dry = bool(data.get("until_dry", False))
         self.last_shower_minutes = data.get("last_shower_minutes")
         self.max_pos = data.get("max_pos", 0.0)
         self._stored_cfg = data.get("cfg", {})
@@ -365,6 +368,7 @@ class DachlukeController:
             "shower_end": _ts(self.shower_end),
             "shower_start": _ts(self.shower_start),
             "peak_time": _ts(self.peak_time),
+            "until_dry": self.until_dry,
             "last_shower_minutes": self.last_shower_minutes,
             "max_pos": self.max_pos,
             "cfg": {k: v for k, v in self.cfg.items() if k in DEFAULTS},
@@ -1233,6 +1237,7 @@ class DachlukeController:
         self._wall_at_open = self.wall_humidity()[0]
         self._prediction_at_open = None
         self.counters["open_manual"] += 1
+        self.until_dry = self._manual_source("open") == VENT_NOW_SOURCE and not self.heat_saving
         if not self.enabled:
             # Automatik aus: Handöffnung bleibt offen. Wetter-Sperre und Alarm schließen weiterhin.
             self.vent_end = None
@@ -1259,7 +1264,7 @@ class DachlukeController:
             self._log(
                 "HAND_AUF",
                 f"Von Hand geöffnet {self._manual_source('open')} (erste Positionsmeldung {pos:.0f} %) – schließt nach "
-                f"{self._manual_minutes():.0f} min; {self.context()}",
+                f"{self._manual_minutes():.0f} min{self._until_dry_text()}; {self.context()}",
             )
             await self._notify("🪟 Dachluke geöffnet", f"Von Hand geöffnet. Schließt nach {self._manual_minutes():.0f} min.",
                                alexa="Dachluke von Hand geöffnet.")
@@ -1719,6 +1724,7 @@ class DachlukeController:
         if self.opened_at:
             self.last_duration = round((now - self.opened_at).total_seconds() / 60, 1)
         self.mode = MODE_IDLE
+        self.until_dry = False
         self.opened_at = None
         self.cap_base = None
         self.vent_end = None
@@ -1878,6 +1884,34 @@ class DachlukeController:
             return False
         return not (self.has_room and shower is not None and shower >= delta)
 
+    def _dry_limit(self) -> float:
+        """Zielfeuchte für „Jetzt lüften“: Raumfeuchte höchstens, sonst feste Schließgrenze (0 = aus)."""
+        return float(self.cfg.get(CONF_ROOM_MAX) or 0) or float(self.cfg.get(CONF_CLOSE_ABS) or 0)
+
+    def _until_dry_text(self) -> str:
+        if not self.until_dry or not self.enabled or self._dry_limit() <= 0:
+            return ""
+        return (f", danach weiter bis Raum unter {self._dry_limit():.0f} % (höchstens "
+                f"{float(self.cfg[CONF_HARD_CAP]):.0f} min, nur wenn außen trockener)")
+
+    def _dry_extend_reason(self, now: datetime) -> str | None:
+        """„Jetzt lüften“ verlängern? Liefert den Grund, sonst None."""
+        limit = self._dry_limit()
+        if limit <= 0 or self.heat_saving or not self.enabled:
+            return None
+        if now >= self._cap_end() - timedelta(minutes=1):
+            return None
+        rh, room, out = self.room_humidity(), self.abs_humidity(), self.outdoor_abs_humidity()
+        if rh is None or rh <= limit:
+            return None
+        if room is None or out is None or out + OUTDOOR_DRY_MARGIN > room:
+            return None
+        if self.cfg[CONF_COLD_ENABLED]:
+            temp = self.room_temperature()
+            if temp is not None and temp < float(self.cfg[CONF_COLD_MIN]):
+                return None
+        return f"Raum {rh:.0f} % über {limit:.0f} %, {room:.1f} g/m³, außen {out:.1f} g/m³"
+
     def _set_vent_end(self, when: datetime) -> None:
         self.vent_end = when
         self._at("vent", when, self._vent_elapsed)
@@ -1915,6 +1949,12 @@ class DachlukeController:
             else:
                 self._log("VERLAENGERT", f"Noch feucht, Trocknung läuft ({self._drop_text(now)}) – 5 min länger")
             return
+        if self.mode == MODE_MANUAL and self.until_dry and self.opened_at:
+            why = self._dry_extend_reason(now)
+            if why:
+                self._set_vent_end(min(now + timedelta(minutes=5), self._cap_end()))
+                self._log("VERLAENGERT", f"‚Jetzt lüften‘: {why} – 5 min länger")
+                return
         if self.mode == MODE_SECOND:
             await self._close("nachlueften", "Zweites Nachlüften beendet")
         elif self.mode in (MODE_AUTO, MODE_MANUAL):
@@ -2218,14 +2258,16 @@ class DachlukeController:
             return
         if self.is_open():
             if self.mode == MODE_MANUAL:
+                self.until_dry = not self.heat_saving
                 self._set_vent_end(dt_util.utcnow() + timedelta(minutes=self._manual_minutes()))
-                self._log("HAND_AUF", f"‚Jetzt lüften‘ erneut gedrückt – läuft weitere {self._manual_minutes():.0f} min")
+                self._log("HAND_AUF", f"‚Jetzt lüften‘ erneut gedrückt – läuft weitere {self._manual_minutes():.0f} min"
+                          f"{self._until_dry_text()}")
                 self._publish()
             return
         target = self.target()
         if target <= 0:  # Wetter gesperrt: nur minimal
             target = int(self.cfg[CONF_POS_RESTRICTED])
-        self._button_at["open"] = (dt_util.utcnow(), "per Dashboard-Taste ‚Jetzt lüften‘")
+        self._button_at["open"] = (dt_util.utcnow(), VENT_NOW_SOURCE)
         await self._cover_to(target)
 
     async def async_stop_venting(self) -> None:

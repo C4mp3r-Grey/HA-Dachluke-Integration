@@ -55,7 +55,7 @@ Only HmIP-BROLL with a position sensor has been used on real hardware so far. Th
   - drying has stalled (less than 1 % drop in 10 min), but not while the room is still above the close limit and outdoor air is at least 2 g/m³ drier (can be switched off).
   - the venting time is over (20 min after the shower ended). It extends in 5-minute steps while humidity is still falling.
   - the room gets too cold (below 18 °C).
-- **Manual opening** runs for 15 minutes. If someone showers meanwhile, the automation takes over. With the automation switched off, a manual opening stays open until you close it.
+- **Manual opening** runs for 15 minutes. If someone showers meanwhile, the automation takes over. Opened with the **Vent now** button, it then continues in 5-minute steps until the room is below *Room humidity at most* (otherwise the fixed close threshold), as long as outdoor air is at least 2 g/m³ drier, up to the hard limit and with cold protection. With the automation switched off, a manual opening stays open until you close it.
 - **Second venting** (optional, off by default): 25 minutes after closing, if humidity is still above 60 %, the hatch opens again for 2 minutes.
 - **Fan** is switched on with the hatch and off again only if the integration switched it on.
 - **Heating** (optional) can be lowered while venting and restored afterwards. Thermostats with their own window-open function (e.g. Homematic IP with a linked window contact) ignore this. The integration detects that and stops interfering.

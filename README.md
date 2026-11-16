@@ -68,7 +68,7 @@ Protokoll, Bilanz und Verlauf zeigen beide Sensoren nebeneinander, damit du sie 
 | Vergleich Lüftdauer | – | optionaler Vorhersage-Sensor (z. B. HACS „Vent Optimization“) wird beim Öffnen und in der Bilanz mit der tatsächlichen Dauer verglichen |
 | Trocknung stagniert | Luke blieb bis Zeitablauf offen | schließt, wenn die Feuchte nach dem Duschen 10 min lang um weniger als 1 % fällt (z. B. bei feuchter Außenluft) ; nicht, solange der Raum über der Schließgrenze liegt und die Außenluft mindestens 2 g/m³ trockener ist (abschaltbar) |
 | Maximale Öffnungsdauer | ab Öffnen | ab **Duschende** (Feuchte fällt um 3 % vom Höchstwert). Während des Duschens bleibt die Luke offen, Obergrenze 90 min |
-| Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik |
+| Handöffnung zum Stoßlüften | wurde beim nächsten Feuchtewert zugemacht | läuft die eingestellte Zeit (Standard 15 min). Duscht jemand währenddessen, übernimmt die Automatik. Über die Taste **Jetzt lüften** geht es danach in 5-min-Schritten weiter, bis der Raum unter *Raumfeuchte höchstens* liegt (sonst unter der festen Schließgrenze), solange die Außenluft mindestens 2 g/m³ trockener ist; höchstens bis zur Obergrenze, Auskühlschutz gilt |
 | Licht | Pflicht zum Öffnen | optional (Standard: aus) |
 | Pause nach Neustart | konnte hängen bleiben | Pause und Timer überstehen Neustarts |
 | Alarm | schaltete Automatik dauerhaft ab | sperrt nur, solange der Alarm aktiv ist |
@@ -164,7 +164,7 @@ Erkannt werden die Ereignistypen `press_short` und `press_long_release` bzw. `pr
 - `sensor.…_position_der_luke` (aus Sensor oder Cover), `sensor.…_feuchte_anstieg_5_min`, `…_ausgangsfeuchte`, `…_luftung_endet`, `…_dauer_letzte_luftung`, `…_letztes_ereignis`
 - Zähler (Diagnose): automatisch und von Hand geöffnet; geschlossen wegen Feuchte, Zeit, stagnierender Trocknung, von Hand, Wetter/Alarm; Duschen erkannt; Duschen ohne Öffnen; Sensorausfälle
 - `binary_sensor.…_luke_offen`, `switch.…_automatik`, `switch.…_pause`
-- Tasten: **Jetzt lüften** (öffnet auf die passende Weite, wetter- und alarmbewusst, gilt als Handöffnung), **Lüftung beenden** (schließt mit Pause), **Analyse zurücksetzen**
+- Tasten: **Jetzt lüften** (öffnet auf die passende Weite, wetter- und alarmbewusst, gilt als Handöffnung und lüftet bis der Raum trocken ist), **Lüftung beenden** (schließt mit Pause), **Analyse zurücksetzen**
 
 Die genauen Entity-IDs hängen von der Sprache bei der Einrichtung ab. Die Seitenleisten-Seite zeigt sie und baut daraus die Dashboard-YAML.
 

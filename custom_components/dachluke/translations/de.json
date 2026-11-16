@@ -127,7 +127,7 @@
           "mold_factor": "Wie beim HA-Schimmelindikator: (T innen − T außen) / (T Wand − T außen), gemessen an der kältesten Stelle (z. B. Laibung der Dachluke) mit einem Infrarot-Thermometer. 1,3 ist ein grober Startwert für gedämmte Wände.",
           "vent_prediction_sensor": "Z. B. der Sensor der HACS-Integration „Vent Optimization“ (Minuten). Wird nur protokolliert und mit der tatsächlichen Dauer verglichen.",
           "vent_until_dry": "Steht die Feuchte, obwohl der Raum noch über der Schließgrenze liegt und die Außenluft mindestens 2 g/m³ trockener ist, wird nicht wegen Stagnation geschlossen, sondern weiter verlängert. Meist trocknen dann Wände und Handtücher nach. Begrenzt durch die harte Obergrenze und den Auskühlschutz. Braucht Raumtemperatur und Außenwerte.",
-          "room_max_humidity": "Wegen Feuchte schließt die Luke erst, wenn auch die Raumfeuchte (Raumsensor bzw. Thermostat) darunter liegt, solange die Außenluft mindestens 2 g/m³ trockener ist. Ist sie das nicht, etwa im Sommer, gelten die normalen Regeln. Obergrenze und Auskühlschutz schließen weiterhin. 0 = aus."
+          "room_max_humidity": "Wegen Feuchte schließt die Luke erst, wenn auch die Raumfeuchte (Raumsensor bzw. Thermostat) darunter liegt, solange die Außenluft mindestens 2 g/m³ trockener ist. Ist sie das nicht, etwa im Sommer, gelten die normalen Regeln. Obergrenze und Auskühlschutz schließen weiterhin. Gilt auch für die Taste „Jetzt lüften“: Sie lüftet nach der Handöffnungs-Dauer weiter, bis der Raum darunter liegt. 0 = aus (die Taste nutzt dann die feste Schließgrenze)."
         },
         "description": "Wann geöffnet und wann geschlossen wird."
       },
