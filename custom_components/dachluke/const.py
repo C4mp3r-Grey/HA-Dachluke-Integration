@@ -29,6 +29,7 @@ CONF_LIGHTS: Final = "lights"
 CONF_REQUIRE_LIGHT: Final = "require_light"
 CONF_FAN: Final = "fan"
 CONF_FAN_CONTROL: Final = "fan_control"
+CONF_FAN_HUMID: Final = "fan_humidity_limit"
 
 # ── Öffnen / Schließen ──────────────────────────────────────────────────
 CONF_RISE_THRESHOLD: Final = "rise_threshold"
@@ -136,6 +137,7 @@ DEFAULTS: Final[dict] = {
     CONF_REQUIRE_LIGHT: False,
     CONF_FAN: None,
     CONF_FAN_CONTROL: True,
+    CONF_FAN_HUMID: 0.0,
     CONF_TEMP_SENSOR: None,
     CONF_ROOM_HUMIDITY: None,
     CONF_ROOM_TEMP: None,

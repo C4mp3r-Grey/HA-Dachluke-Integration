@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import STATE_OFF, STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.core import CALLBACK_TYPE, Context, Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.components import persistent_notification
@@ -55,6 +55,7 @@ from .const import (
     CONF_DWD,
     CONF_FAN,
     CONF_FAN_CONTROL,
+    CONF_FAN_HUMID,
     CONF_FROST_DURATION,
     CONF_FROST_ENABLED,
     CONF_FROST_POSITION,
@@ -150,6 +151,9 @@ PROTOCOL_LEN = 500
 SETTLE_POLL = timedelta(seconds=5)
 CONFIRM_DELAY = timedelta(seconds=30)
 BUTTON_WINDOW = timedelta(seconds=90)
+FAN_HUMID_HYST = 2.0  # %: Lüfter geht erst so weit unter der Grenze wieder aus
+FAN_MANUAL_HOLD = timedelta(minutes=30)
+FAN_OWN_CALL = timedelta(seconds=20)
 VENT_NOW_SOURCE = "per Dashboard-Taste ‚Jetzt lüften‘"
 REF_INTERVAL = timedelta(minutes=15)
 REF_QUIET = timedelta(hours=2)
@@ -232,6 +236,9 @@ class DachlukeController:
         self._button_seen: dict[str, str] = {}
         self._button_at: dict[str, tuple[datetime, bool | str]] = {}
         self.until_dry = False  # Handöffnung per „Jetzt lüften“: lüftet bis der Raum trocken ist
+        self.fan_humid = False  # Lüfter läuft wegen hoher Raumfeuchte
+        self._fan_hold_until: datetime | None = None
+        self._fan_call_at: datetime | None = None
         self._settled_pos: float | None = None
         self._move_start: datetime | None = None
         self._last_pos_change: datetime | None = None
@@ -278,6 +285,7 @@ class DachlukeController:
                 self.cfg.get(CONF_ALARM),
                 self.cfg.get(CONF_CONTACT),
                 self.cfg.get(CONF_INDOOR_DEW),
+                self.cfg.get(CONF_FAN),
                 *self._buttons().keys(),
                 *(self.cfg.get(CONF_LIGHTS) or []),
             )
@@ -344,6 +352,7 @@ class DachlukeController:
         self.saved_setpoint = data.get("saved_setpoint")
         self.heating_lowered = data.get("heating_lowered", False)
         self.fan_started = data.get("fan_started", False)
+        self.fan_humid = bool(data.get("fan_humid", False))
         self.chart_range = data.get("chart_range", "24h")
         self.operating_mode = data.get("operating_mode", "normal") if data.get("operating_mode") in OPERATING_MODES else "normal"
         self.blocked_override = data.get("blocked_override", False)
@@ -380,6 +389,7 @@ class DachlukeController:
             "saved_setpoint": self.saved_setpoint,
             "heating_lowered": self.heating_lowered,
             "fan_started": self.fan_started,
+            "fan_humid": self.fan_humid,
             "chart_range": self.chart_range,
             "operating_mode": self.operating_mode,
             "blocked_override": self.blocked_override,
@@ -445,6 +455,7 @@ class DachlukeController:
         elif self.heating_lowered or self.fan_started:
             await self._heating_restore()
             await self._fan_off()
+        await self._check_fan_humid()
         self._publish()
 
     # ════════════════════════════════════════════════════════════════════
@@ -1116,6 +1127,7 @@ class DachlukeController:
                 self._record_room(dt_util.utcnow())
                 await self._check_cold()
                 await self._evaluate_close()
+                await self._check_fan_humid()
             if eid == self.pos_entity:
                 await self._on_position(old, new)
             if eid in self._buttons():
@@ -1133,6 +1145,8 @@ class DachlukeController:
                 self._schedule_settle()
             if eid == cfg.get(CONF_INDOOR_DEW):
                 await self._evaluate_close()
+            if eid == cfg.get(CONF_FAN):
+                self._on_fan(old, new)
         except Exception:  # noqa: BLE001 – eine fehlerhafte Aktion darf die Steuerung nicht stoppen
             _LOGGER.exception("Fehler bei der Verarbeitung von %s", eid)
         self._publish()
@@ -2186,6 +2200,61 @@ class DachlukeController:
             )
             self._publish()
 
+    def _fan_humid_limit(self) -> float:
+        fan = self.cfg.get(CONF_FAN)
+        if not (fan and self.cfg[CONF_FAN_CONTROL]):
+            return 0.0
+        return float(self.cfg.get(CONF_FAN_HUMID) or 0)
+
+    def _fan_humid_wanted(self) -> tuple[bool | None, str]:
+        """True: Raum zu feucht, Lüfter soll laufen; False: trocken genug; None: dazwischen oder aus."""
+        limit = self._fan_humid_limit()
+        rh = self.room_humidity()
+        if limit <= 0 or rh is None or not self.enabled:
+            return None, ""
+        if rh > limit:
+            return True, f"Raumfeuchte {rh:.0f} % über {limit:.0f} %"
+        if rh <= limit - FAN_HUMID_HYST:
+            return False, f"Raumfeuchte {rh:.0f} % unter {limit - FAN_HUMID_HYST:.0f} %"
+        return None, ""
+
+    @callback
+    def _on_fan(self, old: State | None, new: State | None) -> None:
+        """Lüfter von Hand oder von einer anderen Automation ausgeschaltet: eine Weile in Ruhe lassen."""
+        if not (old and new and old.state == STATE_ON and new.state == STATE_OFF):
+            return
+        now = dt_util.utcnow()
+        if self._fan_call_at and now - self._fan_call_at < FAN_OWN_CALL:
+            return
+        owned = self.fan_started or self.fan_humid
+        self.fan_started = False
+        self.fan_humid = False
+        if self._fan_humid_limit() > 0:
+            self._fan_hold_until = now + FAN_MANUAL_HOLD
+            if owned or self._fan_humid_wanted()[0]:
+                self._log("LUEFTER", f"Lüfter außerhalb der Integration ausgeschaltet – {FAN_MANUAL_HOLD.seconds // 60} min kein Einschalten wegen Feuchte")
+
+    async def _check_fan_humid(self) -> None:
+        if self._fan_humid_limit() <= 0:
+            return
+        want, why = self._fan_humid_wanted()
+        fan = self.cfg[CONF_FAN]
+        st = self._state(fan)
+        if st is None or st.state in BAD_STATES:
+            return
+        if want is True:
+            if st.state == STATE_ON or (self._fan_hold_until and dt_util.utcnow() < self._fan_hold_until):
+                return
+            self._fan_call_at = dt_util.utcnow()
+            await self._call(fan.split(".", 1)[0], "turn_on", {"entity_id": fan})
+            self.fan_started = True
+            self.fan_humid = True
+            self._log("LUEFTER", f"Lüfter eingeschaltet ({why})")
+        elif want is False and self.fan_humid and self.mode == MODE_IDLE:
+            self.fan_humid = False
+            self.fan_started = True
+            await self._fan_off(why)
+
     async def _fan_on(self, why: str = "Luke offen") -> None:
         """Lüfter ergänzt die offene Luke. Lief er schon, bleibt er unangetastet."""
         fan = self.cfg.get(CONF_FAN)
@@ -2198,21 +2267,30 @@ class DachlukeController:
         if st.state == STATE_ON:
             self._log("LUEFTER", "Lüfter lief bereits – bleibt an, wird später nicht ausgeschaltet")
             return
+        self._fan_call_at = dt_util.utcnow()
         await self._call(fan.split(".", 1)[0], "turn_on", {"entity_id": fan})
         self.fan_started = True
         self._log("LUEFTER", f"Lüfter eingeschaltet ({why})")
 
-    async def _fan_off(self) -> None:
-        """Nur ausschalten, wenn die Integration ihn eingeschaltet hat."""
+    async def _fan_off(self, why: str = "Luke zu") -> None:
+        """Nur ausschalten, wenn die Integration ihn eingeschaltet hat und der Raum nicht zu feucht ist."""
         fan = self.cfg.get(CONF_FAN)
         if not self.fan_started or not fan:
             self.fan_started = False
             return
+        want, reason = self._fan_humid_wanted()
+        if want is True or (want is None and self.fan_humid):
+            if not self.fan_humid:
+                self.fan_humid = True
+                self._log("LUEFTER", f"Lüfter läuft weiter ({reason or 'Raum noch feucht'})")
+            return
         self.fan_started = False
+        self.fan_humid = False
         st = self._state(fan)
         if st is not None and st.state == STATE_ON:
+            self._fan_call_at = dt_util.utcnow()
             await self._call(fan.split(".", 1)[0], "turn_off", {"entity_id": fan})
-            self._log("LUEFTER", "Lüfter ausgeschaltet (Luke zu)")
+            self._log("LUEFTER", f"Lüfter ausgeschaltet ({why})")
 
     async def _heating_restore(self) -> None:
         climate = self.cfg.get(CONF_CLIMATE)
@@ -2274,6 +2352,11 @@ class DachlukeController:
                 self._set_vent_end(dt_util.utcnow() + timedelta(minutes=self._manual_minutes()))
                 self._log("HAND_AUF", f"Automatik wieder an – offene Luke schließt in {self._manual_minutes():.0f} min")
         self._log("AKTIV" if value else "DEAKTIV", f"Automatik {'aktiviert' if value else 'deaktiviert'} (Schalter)")
+        if not value and self.fan_humid and self.mode == MODE_IDLE:
+            self.fan_humid = False
+            await self._fan_off("Automatik aus")
+        elif value:
+            await self._check_fan_humid()
         self._publish()
 
     async def async_set_pause(self, value: bool) -> None:

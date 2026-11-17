@@ -197,7 +197,7 @@ Das Protokoll speichert die letzten 500 Einträge. Längere Zeiträume liefert d
 - Getestet mit der offiziellen Home-Assistant-Testumgebung (HA 2026.10.4) und automatisierten Abläufen. Im Alltag erprobt an einer HmIP-BROLL-Luke. Die ersten Tage bitte beobachten.
 - Seitenleiste, Einstellungen und Reparaturhinweise gibt es auf Deutsch und Englisch. Protokoll, Benachrichtigungen und Sprachausgabe sind nur deutsch.
 - Die Seitenleisten-Seite nutzt die offizielle Schnittstelle für eigene Panels (`panel_custom`). Sie ist kein bearbeitbares Lovelace-Dashboard. Dafür gibt es die erzeugte YAML.
-- Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat.
+- Der Lüfter wird beim Lüften eingeschaltet (abschaltbar) und danach nur ausgeschaltet, wenn die Integration ihn selbst eingeschaltet hat. Mit *Lüfter auch bei Raumfeuchte über* läuft er zusätzlich bei geschlossener Luke, solange der Raum feuchter ist (aus 2 % darunter; von Hand ausgeschaltet bleibt er 30 min aus).
 
 ## Datenschutz
 

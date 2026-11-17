@@ -15,7 +15,8 @@
           "temperature_sensor": "Temperatur an der Dusche (optional)",
           "room_humidity_sensor": "Raumfeuchte (entscheidet über das Schließen, optional)",
           "room_temperature_sensor": "Raumtemperatur (optional)",
-          "fan_control": "Lüfter einschalten, solange die Luke offen ist"
+          "fan_control": "Lüfter einschalten, solange die Luke offen ist",
+          "fan_humidity_limit": "Lüfter auch bei Raumfeuchte über"
         },
         "data_description": {
           "position_sensor": "Nur nötig, wenn das Cover seine Position nicht zuverlässig meldet. Bei HmIP-BROLL: Kanal 3 (LEVEL in %), in Homematic(IP) Local freischalten über Unignore Parameters → Kanal 3 → LEVEL. Leer lassen: Die Position kommt vom Cover selbst.",
@@ -25,7 +26,8 @@
           "humidity_sensor": "Ein schnell reagierender Sensor nahe der Dusche. Er darf auch in die Sättigung (100 %) gehen.",
           "room_humidity_sensor": "Z. B. das Wandthermostat. Ist er eingetragen, entscheiden Raumfeuchte und Raumtemperatur über Schließen, Stagnation und zweites Nachlüften. Öffnen und Duschende kommen weiter vom Duschsensor. Du kannst auch direkt das Thermostat (climate) wählen, dann wird dessen Attribut „current_humidity“ gelesen.",
           "room_temperature_sensor": "Leer lassen, um die Ist-Temperatur des Thermostats (Heizung) zu verwenden.",
-          "fan_control": "Schaltet den Lüfter beim Öffnen ein und beim Schließen wieder aus. Lief er schon vorher (z. B. über Licht/CCU), lässt die Integration ihn in Ruhe."
+          "fan_control": "Schaltet den Lüfter beim Öffnen ein und beim Schließen wieder aus. Lief er schon vorher (z. B. über Licht/CCU), lässt die Integration ihn in Ruhe.",
+          "fan_humidity_limit": "Der Lüfter läuft auch bei geschlossener Luke, solange die Raumfeuchte (Raumsensor bzw. Thermostat) über diesem Wert liegt, und geht 2 % darunter wieder aus. Er saugt feuchte Luft nach draußen, trockenere Wohnungsluft strömt nach. Schaltet ihn jemand von Hand aus, bleibt er 30 min aus. Nicht bei ausgeschalteter Automatik. 0 = aus."
         },
         "description": "Weitere Einstellungen (Heizung, Tasten, Alarm, Benachrichtigungen) findest du danach unter Konfigurieren."
       }
@@ -68,7 +70,8 @@
           "temperature_sensor": "Temperatur an der Dusche (optional)",
           "room_humidity_sensor": "Raumfeuchte (entscheidet über das Schließen, optional)",
           "room_temperature_sensor": "Raumtemperatur (optional)",
-          "fan_control": "Lüfter einschalten, solange die Luke offen ist"
+          "fan_control": "Lüfter einschalten, solange die Luke offen ist",
+          "fan_humidity_limit": "Lüfter auch bei Raumfeuchte über"
         },
         "data_description": {
           "position_sensor": "Nur nötig, wenn das Cover seine Position nicht zuverlässig meldet. Bei HmIP-BROLL: Kanal 3 (LEVEL in %), in Homematic(IP) Local freischalten über Unignore Parameters → Kanal 3 → LEVEL. Leer lassen: Die Position kommt vom Cover selbst.",
@@ -78,7 +81,8 @@
           "humidity_sensor": "Ein schnell reagierender Sensor nahe der Dusche. Er darf auch in die Sättigung (100 %) gehen.",
           "room_humidity_sensor": "Z. B. das Wandthermostat. Ist er eingetragen, entscheiden Raumfeuchte und Raumtemperatur über Schließen, Stagnation und zweites Nachlüften. Öffnen und Duschende kommen weiter vom Duschsensor. Du kannst auch direkt das Thermostat (climate) wählen, dann wird dessen Attribut „current_humidity“ gelesen.",
           "room_temperature_sensor": "Leer lassen, um die Ist-Temperatur des Thermostats (Heizung) zu verwenden.",
-          "fan_control": "Schaltet den Lüfter beim Öffnen ein und beim Schließen wieder aus. Lief er schon vorher (z. B. über Licht/CCU), lässt die Integration ihn in Ruhe."
+          "fan_control": "Schaltet den Lüfter beim Öffnen ein und beim Schließen wieder aus. Lief er schon vorher (z. B. über Licht/CCU), lässt die Integration ihn in Ruhe.",
+          "fan_humidity_limit": "Der Lüfter läuft auch bei geschlossener Luke, solange die Raumfeuchte (Raumsensor bzw. Thermostat) über diesem Wert liegt, und geht 2 % darunter wieder aus. Er saugt feuchte Luft nach draußen, trockenere Wohnungsluft strömt nach. Schaltet ihn jemand von Hand aus, bleibt er 30 min aus. Nicht bei ausgeschalteter Automatik. 0 = aus."
         },
         "description": "Welche Entitäten die Luke steuern und messen."
       },

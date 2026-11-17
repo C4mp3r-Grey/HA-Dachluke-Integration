@@ -15,7 +15,8 @@
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
           "room_temperature_sensor": "Room temperature (optional)",
-          "fan_control": "Turn on the fan while the hatch is open"
+          "fan_control": "Turn on the fan while the hatch is open",
+          "fan_humidity_limit": "Fan also above room humidity"
         },
         "description": "More settings are available under Configure afterwards.",
         "data_description": {
@@ -26,7 +27,8 @@
           "humidity_sensor": "A fast-reacting sensor near the shower. It may saturate (100 %).",
           "room_humidity_sensor": "E.g. the wall thermostat. If set, room humidity and temperature decide closing, stall detection and second venting; opening and shower end still come from the shower sensor. You can also pick the thermostat (climate) directly, its attribute “current_humidity” is then used.",
           "room_temperature_sensor": "Leave empty to use the current temperature of the thermostat (heating).",
-          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone."
+          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone.",
+          "fan_humidity_limit": "The fan also runs with the hatch closed while the room humidity (room sensor or thermostat) is above this value, and stops 2 % below it. It pulls humid air outside and drier air from the flat flows in. If someone switches it off by hand, it stays off for 30 min. Not while the automation is off. 0 = off."
         }
       }
     },
@@ -68,7 +70,8 @@
           "temperature_sensor": "Temperature at the shower (optional)",
           "room_humidity_sensor": "Room humidity (decides when to close, optional)",
           "room_temperature_sensor": "Room temperature (optional)",
-          "fan_control": "Turn on the fan while the hatch is open"
+          "fan_control": "Turn on the fan while the hatch is open",
+          "fan_humidity_limit": "Fan also above room humidity"
         },
         "data_description": {
           "fan": "Recorded and, if enabled below, switched while venting.",
@@ -78,7 +81,8 @@
           "humidity_sensor": "A fast-reacting sensor near the shower. It may saturate (100 %).",
           "room_humidity_sensor": "E.g. the wall thermostat. If set, room humidity and temperature decide closing, stall detection and second venting; opening and shower end still come from the shower sensor. You can also pick the thermostat (climate) directly, its attribute “current_humidity” is then used.",
           "room_temperature_sensor": "Leave empty to use the current temperature of the thermostat (heating).",
-          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone."
+          "fan_control": "Turns the fan on when opening and off when closing. If it was already running (e.g. via light or CCU), the integration leaves it alone.",
+          "fan_humidity_limit": "The fan also runs with the hatch closed while the room humidity (room sensor or thermostat) is above this value, and stops 2 % below it. It pulls humid air outside and drier air from the flat flows in. If someone switches it off by hand, it stays off for 30 min. Not while the automation is off. 0 = off."
         },
         "description": "Which entities control and measure the hatch."
       },

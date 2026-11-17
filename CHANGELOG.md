@@ -4,6 +4,7 @@ Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z
 
 ## 1.21.0 – 2026-11-17
 
+- **Lüfter bei hoher Raumfeuchte** (neue Option *Lüfter auch bei Raumfeuchte über*, unter den Geräten, Standard 0 = aus): Der Lüfter läuft auch bei geschlossener Luke, solange der Raumsensor über dem Wert liegt, und geht 2 % darunter wieder aus. Schließt die Luke bei noch feuchtem Raum, läuft er weiter. Schaltet ihn jemand anderes aus (von Hand oder eine andere Automation), bleibt er 30 min aus. Bei ausgeschalteter Automatik schaltet die Integration ihn nicht ein. Status-Attribut `luefter_wegen_feuchte`. Anlass: Der Abluftlüfter zieht trockenere Wohnungsluft ins Bad, lief aber nur, solange die Luke offen war.
 - **Übliche Raumfeuchte gedeckelt:** Ist *Raumfeuchte höchstens* gesetzt und die Außenluft mindestens 2 g/m³ trockener, zählt die gelernte übliche Raumfeuchte (Schließziel bei erhöhter Ausgangsfeuchte) höchstens bis zu diesem Wert. Anlass: Sie hatte sich vom 09. bis 17.11. von 55 % / 10,6 g/m³ auf 60 % / 12,0 g/m³ hochgelernt. Die Luke schloss dadurch früher, und das Bad blieb feuchter. Protokoll zeigt „gedeckelt, gelernt …“, Status-Attribute `uebliche_raumfeuchte_gelernt` und `uebliche_raumfeuchte_gedeckelt`.
 
 ## 1.20.0 – 2026-11-16
