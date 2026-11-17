@@ -51,7 +51,7 @@ Only HmIP-BROLL with a position sensor has been used on real hardware so far. Th
 - **Shower end:** humidity has dropped 3 % from its peak. While the shower is running the hatch stays open, up to a hard limit of 90 minutes.
 - **Closing**, after the shower has ended, as soon as one of these applies:
   - humidity is back near the pre-shower value. With a temperature sensor this uses absolute humidity (+1 g/m³), otherwise relative humidity (+3 %).
-  - if the room was already more humid than usual: the learned typical room humidity (median of quiet periods over the last 3 days), but never below outdoor absolute humidity + 0.5 g/m³.
+  - if the room was already more humid than usual: the learned typical room humidity (median of quiet periods over the last 3 days), but never below outdoor absolute humidity + 0.5 g/m³. With *Room humidity at most* set and drier outdoor air, the learned value is capped at that limit so it cannot creep up during humid weeks.
   - drying has stalled (less than 1 % drop in 10 min), but not while the room is still above the close limit and outdoor air is at least 2 g/m³ drier (can be switched off).
   - the venting time is over (20 min after the shower ended). It extends in 5-minute steps while humidity is still falling.
   - the room gets too cold (below 18 °C).

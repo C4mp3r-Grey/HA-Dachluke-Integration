@@ -2,6 +2,10 @@
 
 Neue Versionen erscheinen in HACS als Update, sobald ein Release mit Tag `vX.Y.Z` existiert. Es entsteht über den Workflow `Release` (Actions → Release → Run workflow, Versionsnummer eingeben). Er legt Tag und Release nur an, wenn alle Prüfungen grün sind.
 
+## 1.21.0 – 2026-11-17
+
+- **Übliche Raumfeuchte gedeckelt:** Ist *Raumfeuchte höchstens* gesetzt und die Außenluft mindestens 2 g/m³ trockener, zählt die gelernte übliche Raumfeuchte (Schließziel bei erhöhter Ausgangsfeuchte) höchstens bis zu diesem Wert. Anlass: Sie hatte sich vom 09. bis 17.11. von 55 % / 10,6 g/m³ auf 60 % / 12,0 g/m³ hochgelernt. Die Luke schloss dadurch früher, und das Bad blieb feuchter. Protokoll zeigt „gedeckelt, gelernt …“, Status-Attribute `uebliche_raumfeuchte_gelernt` und `uebliche_raumfeuchte_gedeckelt`.
+
 ## 1.20.0 – 2026-11-16
 
 - **„Jetzt lüften“ lüftet bis trocken:** Nach der Handöffnungs-Dauer (Standard 15 min) lüftet die Taste in 5-min-Schritten weiter, solange der Raum über *Raumfeuchte höchstens* liegt (ist die Option aus: über der festen Schließgrenze) und die Außenluft mindestens 2 g/m³ trockener ist. Grenzen: harte Obergrenze ab Öffnen, Auskühlschutz, Betriebsart „Wärme sparen“ und Automatik aus verlängern nicht. Öffnungen an der Taste am Gerät, per App oder Automation behalten die feste Dauer. Anlass: 16.11. wurde viermal „Jetzt lüften“ gedrückt, jedes Mal schloss die Luke nach 15 min bei 59–64 % Raumfeuchte und die Feuchte stieg danach wieder.

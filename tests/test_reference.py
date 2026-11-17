@@ -10,7 +10,7 @@ ROOM = "sensor.wandthermostat_feuchte"
 CLIMATE = "climate.bad"
 
 
-async def _setup(hass, freezer):
+async def _setup(hass, freezer, **extra):
     freezer.move_to("2026-11-02 06:00:00+00:00")
     hass.states.async_set(HUM, "62", {"device_class": "humidity"})
     hass.states.async_set(ROOM, "60", {"device_class": "humidity"})
@@ -23,7 +23,7 @@ async def _setup(hass, freezer):
     entry = MockConfigEntry(domain=DOMAIN, title="Dachluke", unique_id=COVER, data={},
                             options={**DEFAULTS, "cover": COVER, "position_sensor": POS, "humidity_sensor": HUM,
                                      "room_humidity_sensor": ROOM, "climate": CLIMATE, "weather": WEATHER,
-                                     "stall_enabled": False})
+                                     "stall_enabled": False, **extra})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
@@ -73,3 +73,25 @@ async def test_elevated_baseline_uses_reference(hass, freezer):
 def test_outdoor_floor():
     rh, ah = logic.close_targets(baseline=60, baseline_ah=9.0, ref_rh=None, ref_ah=None, outdoor_ah=10.0)
     assert ah == 10.5 and rh == 60
+
+
+async def test_reference_capped_by_room_max(hass, freezer):
+    """17.11.: übliche Raumfeuchte hatte sich in einer Woche von 55 auf 60 % hochgelernt."""
+    entry, _ = await _setup(hass, freezer, room_max_humidity=55)
+    c = entry.runtime_data
+    for _ in range(12):
+        await step(hass, freezer, 15)
+    assert c.reference_learned()[0] == 60
+    rh, ah = c.reference()
+    assert rh == 55 and abs(ah - logic.absolute_humidity(21.0, 55)) < 0.01
+    assert c.reference_capped()
+    assert "gedeckelt, gelernt 60 %" in c._target_text()
+
+
+async def test_reference_not_capped_when_outdoor_humid(hass, freezer):
+    entry, _ = await _setup(hass, freezer, room_max_humidity=55)
+    hass.states.async_set(WEATHER, "cloudy", {"temperature": 20, "humidity": 70})  # etwa 12 g/m³
+    c = entry.runtime_data
+    for _ in range(12):
+        await step(hass, freezer, 15)
+    assert c.reference()[0] == 60 and not c.reference_capped()

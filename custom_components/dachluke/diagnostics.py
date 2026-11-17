@@ -47,6 +47,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
             "brightsky": controller.bs,
             "close_targets": controller.close_targets(),
             "reference": controller.reference(),
+            "reference_learned": controller.reference_learned(),
             "wall_humidity": controller.wall_humidity(),
             "issues": controller.issues,
         },

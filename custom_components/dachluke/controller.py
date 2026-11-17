@@ -646,13 +646,46 @@ class DachlukeController:
             return None
         return logic.absolute_humidity(temp, hum)
 
-    def reference(self) -> tuple[float | None, float | None]:
+    def reference_learned(self) -> tuple[float | None, float | None]:
         if len(self.ref_samples) < REF_MIN_SAMPLES:
             return None, None
         return (
             logic.median([r[1] for r in self.ref_samples]),
             logic.median([r[2] for r in self.ref_samples]),
         )
+
+    def reference_capped(self) -> bool:
+        ref_rh, ref_ah = self.reference_learned()
+        cap_rh, cap_ah = self._reference_cap()
+        return (ref_rh is not None and cap_rh is not None and ref_rh > cap_rh) or (
+            ref_ah is not None and cap_ah is not None and ref_ah > cap_ah)
+
+    def _reference_cap(self) -> tuple[float | None, float | None]:
+        """„Raumfeuchte höchstens“ deckelt die gelernte übliche Raumfeuchte, solange die Außenluft trockener ist.
+
+        Sonst lernt sich die Referenz in feuchten Wochen nach oben, die Luke schließt früher
+        und das Bad bleibt feucht (Auswertung 17.11.: 55 % → 60 % in einer Woche).
+        """
+        limit = float(self.cfg.get(CONF_ROOM_MAX) or 0)
+        if limit <= 0 or self.heat_saving:
+            return None, None
+        out = self.outdoor_abs_humidity()
+        temp = self.room_temperature()
+        if out is None or temp is None:
+            return None, None
+        cap_ah = logic.absolute_humidity(temp, limit)
+        if out + OUTDOOR_DRY_MARGIN > cap_ah:
+            return None, None
+        return limit, cap_ah
+
+    def reference(self) -> tuple[float | None, float | None]:
+        ref_rh, ref_ah = self.reference_learned()
+        cap_rh, cap_ah = self._reference_cap()
+        if ref_rh is not None and cap_rh is not None:
+            ref_rh = min(ref_rh, cap_rh)
+        if ref_ah is not None and cap_ah is not None:
+            ref_ah = min(ref_ah, cap_ah)
+        return ref_rh, ref_ah
 
     def shower_reference(self) -> tuple[float | None, float | None]:
         vals = [r for r in self.ref_samples if len(r) > 3 and r[3] is not None]
@@ -716,6 +749,9 @@ class DachlukeController:
         txt += f" + Offset; üblich {self._fmt(ref_rh, ' %')}" + (f"/{self._fmt(ref_ah, ' g/m³', 1)}" if ref_ah is not None else "")
         if ref_rh is None:
             txt += f" (Referenz lernt noch, {len(self.ref_samples)}/{REF_MIN_SAMPLES} Werte)"
+        elif self.reference_capped():
+            l_rh, l_ah = self.reference_learned()
+            txt += f" (gedeckelt, gelernt {self._fmt(l_rh, ' %')}" + (f"/{self._fmt(l_ah, ' g/m³', 1)}" if l_ah is not None else "") + ")"
         if out is not None:
             txt += f"; außen {out:.1f} g/m³"
         return txt
